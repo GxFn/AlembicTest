@@ -124,8 +124,19 @@ try {
     evidenceRefCount: evidenceRefs.length,
     hostResponseAction: material?.hostResponse?.action ?? null,
     hostResponseRequired: material?.hostResponse?.required === true,
+    hostResponseTiming: material?.hostResponse?.timing ?? null,
+    hostResponseRequiredBeforeNextAction:
+      material?.hostResponse?.requiredBeforeNextAction === true,
+    hostResponseVisibility: material?.hostResponse?.visibility ?? null,
+    hostResponseImmediateDeveloperVisible:
+      material?.hostResponse?.timing === 'immediate_after_prime' &&
+      material?.hostResponse?.requiredBeforeNextAction === true &&
+      material?.hostResponse?.visibility === 'developer_visible',
     shoutInstructionPresent:
       typeof material?.shoutInstruction === 'string' && material.shoutInstruction.length > 0,
+    shoutInstructionImmediate:
+      typeof material?.shoutInstruction === 'string' &&
+      /immediate|before.+next action|先|下一/i.test(material.shoutInstruction),
     nextActionTools,
     nextActionsContainCodexHostResponse: nextActionTools.includes('codex_host_response'),
     serviceBoundaryExecutionPath: serviceBoundary?.executionPath ?? null,
@@ -146,6 +157,7 @@ try {
     report.checks.evidenceRefCount > 0 &&
     report.checks.hostResponseAction === 'shout_prime_knowledge_receipt' &&
     report.checks.hostResponseRequired &&
+    report.checks.hostResponseImmediateDeveloperVisible &&
     report.checks.serviceBoundaryPluginOwned &&
     !report.checks.nextActionsContainCodexHostResponse;
 } finally {
@@ -217,10 +229,14 @@ function summarizeReport(value) {
     acceptedGuardCount: value.checks.acceptedGuardCount,
     evidenceRefCount: value.checks.evidenceRefCount,
     hostResponseAction: value.checks.hostResponseAction,
+    hostResponseTiming: value.checks.hostResponseTiming,
+    hostResponseRequiredBeforeNextAction: value.checks.hostResponseRequiredBeforeNextAction,
+    hostResponseVisibility: value.checks.hostResponseVisibility,
     serviceBoundaryExecutionPath: value.checks.serviceBoundaryExecutionPath,
     serviceBoundaryOwner: value.checks.serviceBoundaryOwner,
     serviceBoundaryResidentServiceRequested: value.checks.serviceBoundaryResidentServiceRequested,
     nextActionsContainCodexHostResponse: value.checks.nextActionsContainCodexHostResponse,
+    codexVisibleShout: value.codexVisibleShout,
   };
 }
 
