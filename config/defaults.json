@@ -1,0 +1,20 @@
+{
+  "defaultProject": "BiliDili",
+  "defaultAlembic": "Alembic",
+  "restart": {
+    "waitMs": 10000,
+    "stopWaitMs": 5000,
+    "statusTimeoutMs": 3000,
+    "monitorIntervalMs": 20000,
+    "devLink": true,
+    "runtimeWriteCheck": true,
+    "statusProbe": true
+  },
+  "monitor": {
+    "intervalMs": 20000,
+    "timeoutSeconds": 8,
+    "signalLines": 12,
+    "tailBytes": 24000,
+    "signalPattern": "AgentService|AgentRuntime|LLM call|tool calls received|Dimension child result|Bootstrap tier|Bootstrap agent session|coding-standards|QualityGate|note_finding|quality_gate|quality_gate_failed|failed|error|timeout|abort|cancel|RECORD|analysis_retry|l4"
+  }
+}
