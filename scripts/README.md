@@ -32,7 +32,10 @@ Current scripts:
   evidence packet under `AlembicTest/tmp/` and summarizes
   `searchMeta.residentSearch`, `residentVector`, semantic/vector usage,
   fallback reason, representative hits, prime service boundary, and whether a
-  fictional `codex_host_response` tool appeared.
+  fictional `codex_host_response` tool appeared. It also scans the direct search
+  payload and MCP stderr for the removed `/api/v1/mcp/call` /
+  `daemon-mcp-compat-bridge` path, so VEC-4R retests can distinguish bridge
+  removal from daemon resident telemetry gaps.
 - `restart-alembic.mjs`: one-command local Alembic runtime restart for real
   project testing. It defaults to the workspace `BiliDili` project, first
   performs a clean-environment preflight that stops existing Alembic daemon

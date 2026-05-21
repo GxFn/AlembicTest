@@ -156,6 +156,10 @@ try {
   const directResidentSummaries = Object.values(searchSummaries).map(
     (summary) => summary.resident
   );
+  const bridgeScan = scanRemovedBridge({
+    searches: report.searches,
+    stderr,
+  });
   const nextActionTools = Array.isArray(material?.nextActions)
     ? material.nextActions.map((action) => action?.tool).filter(Boolean)
     : [];
@@ -181,6 +185,14 @@ try {
     directSearchSuccess: Object.values(report.searches).every((result) => result?.success === true),
     directSearchMessages: Object.fromEntries(
       Object.entries(report.searches).map(([mode, result]) => [mode, result?.message ?? null])
+    ),
+    directSearchServiceBoundaries: Object.fromEntries(
+      Object.entries(searchSummaries).map(([mode, summary]) => [mode, summary.serviceBoundary])
+    ),
+    directSearchPluginOwned: Object.values(searchSummaries).every(
+      (summary) =>
+        summary.serviceBoundary?.executionPath === 'plugin-owned-codex-facing' &&
+        summary.serviceBoundary?.owner === 'alembic-plugin'
     ),
     directSearchHasResidentMeta: directResidentSummaries.some((summary) =>
       Boolean(summary.route || summary.residentVector)
@@ -212,6 +224,11 @@ try {
       serviceBoundary?.tool === 'alembic_task',
     codexVisibleShoutDefaultsDumpEvidenceRefs: detectsEvidenceDump(report.codexVisibleShout),
     daemonSearchSummary: report.daemonSearch,
+    daemonSearchHasSearchMeta: Array.isArray(report.daemonSearch?.searchMetaKeys)
+      ? report.daemonSearch.searchMetaKeys.length > 0
+      : false,
+    removedBridgeScan: bridgeScan,
+    removedBridgeAbsent: !bridgeScan.containsMcpCallPath && !bridgeScan.containsDaemonCompatBridge,
   };
   report.classification = classify(report.checks);
   report.ok = report.classification === 'resident-success' || report.classification === 'fallback-clear';
@@ -228,6 +245,7 @@ function summarizeSearchPayload(result, requestedMode) {
   const data = isRecord(result?.data) ? result.data : {};
   const items = Array.isArray(data.items) ? data.items : [];
   const searchMeta = isRecord(data.searchMeta) ? data.searchMeta : null;
+  const serviceBoundary = isRecord(data.serviceBoundary) ? data.serviceBoundary : null;
   return {
     requestedMode,
     success: result?.success === true,
@@ -237,6 +255,24 @@ function summarizeSearchPayload(result, requestedMode) {
     totalResults: numberFrom(data.totalResults) ?? items.length,
     items: items.slice(0, 5).map(summarizeHit),
     resident: summarizeResidentMeta(searchMeta),
+    serviceBoundary: serviceBoundary
+      ? {
+          executionPath: stringFrom(serviceBoundary.executionPath) ?? null,
+          owner: stringFrom(serviceBoundary.owner) ?? null,
+          operation: stringFrom(serviceBoundary.operation) ?? null,
+          residentServiceRequested: booleanFrom(serviceBoundary.residentServiceRequested),
+          sharedContractCandidate: booleanFrom(serviceBoundary.sharedContractCandidate),
+          tool: stringFrom(serviceBoundary.tool) ?? null,
+        }
+      : null,
+  };
+}
+
+function scanRemovedBridge(input) {
+  const haystack = `${JSON.stringify(input.searches)}\n${input.stderr.join('\n')}`;
+  return {
+    containsMcpCallPath: /\/api\/v1\/mcp\/call/.test(haystack),
+    containsDaemonCompatBridge: /daemon-mcp-compat-bridge/.test(haystack),
   };
 }
 
@@ -409,6 +445,9 @@ function detectsEvidenceDump(value) {
 }
 
 function classify(checks) {
+  if (!checks.removedBridgeAbsent) {
+    return 'mcp-bridge-regression';
+  }
   if (!checks.primeSuccess || !checks.directSearchSuccess) {
     const messages = Object.values(checks.directSearchMessages || {});
     if (messages.some((message) => /POST \/api\/v1\/mcp\/call/.test(String(message)))) {
@@ -418,6 +457,12 @@ function classify(checks) {
   }
   if (checks.toolListContainsCodexHostResponse || checks.nextActionsContainCodexHostResponse) {
     return 'tool-boundary-regression';
+  }
+  if (!checks.directSearchPluginOwned) {
+    return 'search-boundary-regression';
+  }
+  if (!checks.daemonSearchHasSearchMeta) {
+    return 'daemon-missing-searchmeta';
   }
   if (!checks.directSearchHasResidentMeta) {
     return 'missing-resident-metadata';
@@ -466,7 +511,9 @@ function summarizeReport(value) {
     primeResident: value.checks.primeSearchMeta,
     directSearchSummaries: value.checks.directSearchSummaries,
     directSearchMessages: value.checks.directSearchMessages,
+    directSearchServiceBoundaries: value.checks.directSearchServiceBoundaries,
     daemonSearchSummary: value.checks.daemonSearchSummary,
+    removedBridgeScan: value.checks.removedBridgeScan,
     serviceBoundaryExecutionPath: value.checks.serviceBoundaryExecutionPath,
     serviceBoundaryOwner: value.checks.serviceBoundaryOwner,
     serviceBoundaryResidentServiceRequested: value.checks.serviceBoundaryResidentServiceRequested,
