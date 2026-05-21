@@ -25,6 +25,14 @@ Current scripts:
   refs, immediate receipt timing fields (`timing`, `requiredBeforeNextAction`,
   and `visibility`), readable receipt-shout guidance that does not dump
   evidence refs by default, and no fictional `codex_host_response` MCP tool.
+- `probe-resident-vector-search.mjs`: read-only Codex MCP resident search probe
+  for real-project validation. It launches the same local Alembic Codex MCP
+  stdio runtime, calls `alembic_codex_status`, `alembic_task(operation=prime)`,
+  then direct `alembic_search` in `auto` and `semantic` modes. It stores a JSON
+  evidence packet under `AlembicTest/tmp/` and summarizes
+  `searchMeta.residentSearch`, `residentVector`, semantic/vector usage,
+  fallback reason, representative hits, prime service boundary, and whether a
+  fictional `codex_host_response` tool appeared.
 - `restart-alembic.mjs`: one-command local Alembic runtime restart for real
   project testing. It defaults to the workspace `BiliDili` project, first
   performs a clean-environment preflight that stops existing Alembic daemon
@@ -75,4 +83,10 @@ Probe Codex prime against `BiliDili`:
 
 ```bash
 node AlembicTest/scripts/probe-codex-prime.mjs
+```
+
+Probe resident vector search against `BiliDili`:
+
+```bash
+node AlembicTest/scripts/probe-resident-vector-search.mjs
 ```
