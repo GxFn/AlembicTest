@@ -16,13 +16,18 @@ Scripts here should:
 Current scripts:
 
 - `restart-alembic.mjs`: one-command local Alembic runtime restart for real
-  project testing. It defaults to the workspace `BiliDili` project, first runs
+  project testing. It defaults to the workspace `BiliDili` project, first
+  performs a clean-environment preflight that stops existing Alembic daemon
+  processes / stale AlembicTest monitors and removes old `.asd/daemon.log` plus
+  `.asd/logs/` files from known Alembic data roots. It then runs
   `npm run dev:link` in the Alembic repository to refresh the local global
-  development environment, then calls the Alembic CLI
+  development environment, and finally calls the Alembic CLI
   `start --restart --no-open --json`, prints the active Dashboard URL, daemon
   pid, and compact bootstrap job probe. Use `--monitor` to immediately hand off
-  to the read-only bootstrap monitor after restart. Use `--no-dev-link` only
-  when intentionally testing an already-linked build. Because Alembic must write
+  to the read-only bootstrap monitor after restart. Use `--no-preclean`,
+  `--no-stop-all-services`, or `--no-clean-logs` only when intentionally
+  preserving current runtime state for a focused diagnostic. Use `--no-dev-link`
+  only when intentionally testing an already-linked build. Because Alembic must write
   `~/.asd/runtime-control.json` to register the active runtime, the script
   preflights that write and should be run with elevated sandbox permissions
   inside Codex.

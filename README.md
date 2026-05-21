@@ -17,6 +17,10 @@ Alembic or BiliDili repository, not in this test workspace.
 - Do not modify `BiliDili` product behavior for test convenience.
 - Destructive test operations require explicit user or control-plan
   authorization.
+- The default restart flow performs a clean-environment preflight: stop existing
+  Alembic daemons / stale AlembicTest monitors, then clear old Alembic runtime
+  logs. It does not delete databases, candidates, settings, secrets, or project
+  source files.
 
 ## Layout
 

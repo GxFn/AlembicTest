@@ -8,6 +8,8 @@ should not keep ad hoc testing defaults in root scripts or root docs.
 - default real-project verification target;
 - Alembic repository path for local runtime smoke;
 - restart wait / stop / status timing;
+- restart preclean behavior for stopping Alembic services and clearing stale
+  runtime logs before a test;
 - monitor polling, timeout, log tail, and signal matching defaults.
 
 Do not store secrets, API keys, local credentials, absolute user paths, or

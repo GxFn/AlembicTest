@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +27,16 @@ const DEFAULT_WAIT_MS = numberConfig(TEST_CONFIG.restart?.waitMs, 10_000);
 const DEFAULT_STOP_WAIT_MS = numberConfig(TEST_CONFIG.restart?.stopWaitMs, 5_000);
 const DEFAULT_STATUS_TIMEOUT_MS = numberConfig(TEST_CONFIG.restart?.statusTimeoutMs, 3_000);
 const DEFAULT_MONITOR_INTERVAL_MS = numberConfig(TEST_CONFIG.restart?.monitorIntervalMs, 20_000);
+const DEFAULT_PRECLEAN_ENABLED = booleanConfig(TEST_CONFIG.restart?.preclean?.enabled, true);
+const DEFAULT_PRECLEAN_STOP_ALL_SERVICES = booleanConfig(
+  TEST_CONFIG.restart?.preclean?.stopAllServices,
+  true,
+);
+const DEFAULT_PRECLEAN_CLEAN_LOGS = booleanConfig(TEST_CONFIG.restart?.preclean?.cleanLogs, true);
+const DEFAULT_PRECLEAN_STOP_WAIT_MS = numberConfig(
+  TEST_CONFIG.restart?.preclean?.stopWaitMs,
+  DEFAULT_STOP_WAIT_MS,
+);
 
 function loadTestConfig() {
   const configPath = path.join(alembicTestRoot, "config", "defaults.json");
@@ -53,6 +72,10 @@ Options:
   --wait <ms>                 Wait for daemon ready. Default: ${DEFAULT_WAIT_MS}
   --stop-wait <ms>            Wait for previous runtime stop. Default: ${DEFAULT_STOP_WAIT_MS}
   --status-timeout <ms>       Wait for post-start status probe. Default: ${DEFAULT_STATUS_TIMEOUT_MS}
+  --no-preclean               Skip the clean-environment preflight.
+  --no-stop-all-services      Do not stop existing Alembic daemon/test monitor processes.
+  --no-clean-logs             Do not remove old .asd daemon/log files before restart.
+  --preclean-stop-wait <ms>   Wait for service shutdown before SIGKILL. Default: ${DEFAULT_PRECLEAN_STOP_WAIT_MS}
   --no-dev-link               Skip Alembic npm run dev:link before restart.
   --no-runtime-write-check    Skip preflight write check for ~/.asd runtime state.
   --no-status                 Skip the post-start bootstrap status probe.
@@ -80,6 +103,10 @@ function parseArgs(argv) {
     monitor: false,
     monitorIntervalMs: DEFAULT_MONITOR_INTERVAL_MS,
     monitorOnce: false,
+    preclean: DEFAULT_PRECLEAN_ENABLED,
+    precleanCleanLogs: DEFAULT_PRECLEAN_CLEAN_LOGS,
+    precleanStopAllServices: DEFAULT_PRECLEAN_STOP_ALL_SERVICES,
+    precleanStopWaitMs: DEFAULT_PRECLEAN_STOP_WAIT_MS,
     project: DEFAULT_PROJECT,
     runtimeWriteCheck: booleanConfig(TEST_CONFIG.restart?.runtimeWriteCheck, true),
     status: booleanConfig(TEST_CONFIG.restart?.statusProbe, true),
@@ -118,11 +145,31 @@ function parseArgs(argv) {
       options.devLink = false;
       continue;
     }
+    if (arg === "--no-preclean") {
+      options.preclean = false;
+      continue;
+    }
+    if (arg === "--no-stop-all-services") {
+      options.precleanStopAllServices = false;
+      continue;
+    }
+    if (arg === "--no-clean-logs") {
+      options.precleanCleanLogs = false;
+      continue;
+    }
     if (arg === "--no-runtime-write-check") {
       options.runtimeWriteCheck = false;
       continue;
     }
-    if (arg === "--project" || arg === "--alembic" || arg === "--wait" || arg === "--stop-wait" || arg === "--status-timeout" || arg === "--monitor-interval") {
+    if (
+      arg === "--project" ||
+      arg === "--alembic" ||
+      arg === "--wait" ||
+      arg === "--stop-wait" ||
+      arg === "--status-timeout" ||
+      arg === "--monitor-interval" ||
+      arg === "--preclean-stop-wait"
+    ) {
       const value = argv[i + 1];
       if (!value || value.startsWith("--")) {
         throw new Error(`${arg} requires a value`);
@@ -140,6 +187,8 @@ function parseArgs(argv) {
         options.statusTimeoutMs = parsePositiveInteger(value, arg);
       } else if (arg === "--monitor-interval") {
         options.monitorIntervalMs = parsePositiveInteger(value, arg);
+      } else if (arg === "--preclean-stop-wait") {
+        options.precleanStopWaitMs = parsePositiveInteger(value, arg);
       }
       continue;
     }
@@ -244,6 +293,306 @@ function pidFromResult(result) {
   );
 }
 
+function safeReadJson(filePath) {
+  try {
+    return JSON.parse(readFileSync(filePath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function safeRealpathOrResolve(value) {
+  return path.resolve(value);
+}
+
+function uniqueBy(items, keyFn) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items) {
+    const key = keyFn(item);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+function knownGlobalAlembicRoot() {
+  return path.join(os.homedir(), ".asd");
+}
+
+function discoverDataRoots(projectRoot) {
+  const roots = new Set();
+  const homeAlembicRoot = knownGlobalAlembicRoot();
+  const workspacesRoot = path.join(homeAlembicRoot, "workspaces");
+
+  // 真实测试通常走 ghost workspace；同时保留 projectRoot/.asd 兼容旧本地数据布局。
+  if (existsSync(path.join(projectRoot, ".asd"))) {
+    roots.add(safeRealpathOrResolve(projectRoot));
+  }
+
+  const projects = safeReadJson(path.join(homeAlembicRoot, "projects.json"));
+  const entries = projects && typeof projects === "object" ? Object.values(projects.projects || {}) : [];
+  for (const entry of entries) {
+    if (entry && typeof entry === "object" && typeof entry.id === "string") {
+      const dataRoot = path.join(workspacesRoot, entry.id);
+      if (existsSync(path.join(dataRoot, ".asd"))) {
+        roots.add(safeRealpathOrResolve(dataRoot));
+      }
+    }
+  }
+
+  if (existsSync(workspacesRoot)) {
+    for (const entry of readdirSync(workspacesRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const dataRoot = path.join(workspacesRoot, entry.name);
+      if (existsSync(path.join(dataRoot, ".asd"))) {
+        roots.add(safeRealpathOrResolve(dataRoot));
+      }
+    }
+  }
+
+  return [...roots].sort();
+}
+
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sleepSync(ms) {
+  if (ms <= 0) {
+    return;
+  }
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function terminateProcess(pid, waitMs, reason) {
+  if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) {
+    return { ok: false, pid, reason, status: "skipped-invalid-pid" };
+  }
+  if (!isProcessAlive(pid)) {
+    return { ok: true, pid, reason, status: "already-exited" };
+  }
+
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch (error) {
+    return {
+      ok: false,
+      pid,
+      reason,
+      status: "sigterm-failed",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < waitMs) {
+    if (!isProcessAlive(pid)) {
+      return { ok: true, pid, reason, status: "terminated" };
+    }
+    sleepSync(100);
+  }
+
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    return { ok: true, pid, reason, status: "exited-before-sigkill" };
+  }
+  return { ok: !isProcessAlive(pid), pid, reason, status: "killed" };
+}
+
+function daemonRuntimeDir(dataRoot) {
+  return path.join(dataRoot, ".asd");
+}
+
+function removeDaemonRuntimeState(dataRoot) {
+  const runtimeDir = daemonRuntimeDir(dataRoot);
+  const removed = [];
+  for (const name of ["daemon.json", "daemon.pid"]) {
+    const target = path.join(runtimeDir, name);
+    if (existsSync(target)) {
+      rmSync(target, { force: true });
+      removed.push(target);
+    }
+  }
+  const lockDir = path.join(runtimeDir, "daemon.lock");
+  if (existsSync(lockDir)) {
+    rmSync(lockDir, { recursive: true, force: true });
+    removed.push(lockDir);
+  }
+  return removed;
+}
+
+function stopDaemonsFromState(dataRoots, waitMs, dryRun) {
+  const stopped = [];
+  const removedState = [];
+  for (const dataRoot of dataRoots) {
+    const runtimeDir = daemonRuntimeDir(dataRoot);
+    const statePath = path.join(runtimeDir, "daemon.json");
+    const state = safeReadJson(statePath);
+    const pid = Number(state?.pid);
+    if (Number.isInteger(pid) && pid > 0) {
+      if (dryRun) {
+        stopped.push({ dataRoot, pid, reason: "daemon-state", status: "dry-run" });
+      } else {
+        stopped.push(terminateProcess(pid, waitMs, `daemon-state:${dataRoot}`));
+      }
+    }
+    if (!dryRun) {
+      removedState.push(...removeDaemonRuntimeState(dataRoot));
+    } else if (existsSync(runtimeDir)) {
+      removedState.push(path.join(runtimeDir, "daemon.json"));
+      removedState.push(path.join(runtimeDir, "daemon.pid"));
+      removedState.push(path.join(runtimeDir, "daemon.lock"));
+    }
+  }
+  return { removedState, stopped };
+}
+
+function listProcessMatches() {
+  const result = spawnSync("ps", ["-axo", "pid=,command="], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status !== 0 || result.error) {
+    return {
+      error: result.error?.message || result.stderr.trim() || "ps failed",
+      matches: [],
+      ok: false,
+    };
+  }
+
+  const currentPid = process.pid;
+  const matches = result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const firstSpace = line.search(/\s/);
+      const pid = Number(firstSpace >= 0 ? line.slice(0, firstSpace) : line);
+      const command = firstSpace >= 0 ? line.slice(firstSpace).trim() : "";
+      return { command, pid };
+    })
+    .filter((entry) => Number.isInteger(entry.pid) && entry.pid > 0 && entry.pid !== currentPid)
+    .filter((entry) => {
+      // 只兜底 Alembic 自己的 daemon 和旧 AlembicTest monitor，避免误杀其它 node 服务。
+      const daemonServer = /(?:^|\s|\/)(?:dist\/bin\/)?daemon-server\.js\b/.test(entry.command);
+      const alembicOwned = /Alembic|alembic-ai|alembic-codex/i.test(entry.command);
+      const staleMonitor = /AlembicTest\/scripts\/monitor-alembic-bootstrap\.mjs/.test(entry.command);
+      return (daemonServer && alembicOwned) || staleMonitor;
+    });
+
+  return { matches, ok: true };
+}
+
+function stopAlembicProcesses(waitMs, dryRun) {
+  const processScan = listProcessMatches();
+  if (!processScan.ok) {
+    return { error: processScan.error, stopped: [] };
+  }
+
+  const stopped = uniqueBy(processScan.matches, (entry) => entry.pid).map((entry) => {
+    if (dryRun) {
+      return { command: entry.command, ok: true, pid: entry.pid, reason: "process-scan", status: "dry-run" };
+    }
+    return {
+      command: entry.command,
+      ...terminateProcess(entry.pid, waitMs, "process-scan"),
+    };
+  });
+  return { stopped };
+}
+
+function countPathEntries(target) {
+  if (!existsSync(target)) {
+    return { dirs: 0, files: 0 };
+  }
+  const stat = statSync(target);
+  if (!stat.isDirectory()) {
+    return { dirs: 0, files: 1 };
+  }
+  let dirs = 1;
+  let files = 0;
+  for (const entry of readdirSync(target, { withFileTypes: true })) {
+    const child = path.join(target, entry.name);
+    if (entry.isDirectory()) {
+      const counted = countPathEntries(child);
+      dirs += counted.dirs;
+      files += counted.files;
+    } else {
+      files += 1;
+    }
+  }
+  return { dirs, files };
+}
+
+function cleanLogs(dataRoots, dryRun) {
+  const cleaned = [];
+  for (const dataRoot of dataRoots) {
+    const runtimeDir = daemonRuntimeDir(dataRoot);
+    const daemonLog = path.join(runtimeDir, "daemon.log");
+    const logsDir = path.join(runtimeDir, "logs");
+    const targets = [daemonLog, logsDir].filter((target) => existsSync(target));
+    const before = targets.map((target) => ({ target, ...countPathEntries(target) }));
+
+    if (!dryRun) {
+      rmSync(daemonLog, { force: true });
+      rmSync(logsDir, { recursive: true, force: true });
+      mkdirSync(logsDir, { recursive: true });
+    }
+
+    cleaned.push({
+      dataRoot,
+      dirs: before.reduce((sum, item) => sum + item.dirs, 0),
+      files: before.reduce((sum, item) => sum + item.files, 0),
+      status: dryRun ? "dry-run" : "cleaned",
+      targets: before.map((item) => item.target),
+    });
+  }
+  return cleaned;
+}
+
+function runPreclean({ dryRun, projectRoot, stopAllServices, cleanLogFiles, waitMs }) {
+  const dataRoots = discoverDataRoots(projectRoot);
+  const summary = {
+    cleanLogs: cleanLogFiles ? [] : null,
+    dataRoots,
+    ok: true,
+    processScanError: null,
+    removedState: [],
+    stopAllServices,
+    stopped: [],
+  };
+
+  if (stopAllServices) {
+    const byState = stopDaemonsFromState(dataRoots, waitMs, dryRun);
+    const byProcess = stopAlembicProcesses(waitMs, dryRun);
+    summary.removedState = byState.removedState;
+    summary.stopped = [...byState.stopped, ...byProcess.stopped];
+    summary.processScanError = byProcess.error || null;
+  }
+
+  if (cleanLogFiles) {
+    summary.cleanLogs = cleanLogs(dataRoots, dryRun);
+  }
+
+  summary.ok =
+    dryRun ||
+    (!summary.processScanError &&
+      summary.stopped.every((entry) => entry.ok !== false || entry.status === "already-exited"));
+  return summary;
+}
+
 async function fetchJsonWithTimeout(url, timeoutMs) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -277,6 +626,17 @@ function printHuman(summary) {
   console.log(`Project:   ${summary.projectRoot}`);
   console.log(`Data root: ${summary.dataRoot ?? "unknown"}`);
   console.log(`Alembic:   ${summary.alembicRoot}`);
+  if (summary.preclean?.skipped) {
+    console.log("Preclean: skipped");
+  } else if (summary.preclean) {
+    const stopped = summary.preclean.stopped?.length ?? 0;
+    const cleanedRoots = summary.preclean.cleanLogs?.length ?? 0;
+    const cleanedFiles =
+      summary.preclean.cleanLogs?.reduce((sum, entry) => sum + (entry.files ?? 0), 0) ?? 0;
+    console.log(
+      `Preclean: services=${stopped} logRoots=${cleanedRoots} logFiles=${cleanedFiles} ${summary.preclean.ok ? "ok" : "check"}`
+    );
+  }
   console.log(`Dev link:  ${summary.devLink?.skipped ? "skipped" : summary.devLink?.ok ? "ok" : "failed"}`);
   console.log(`Runtime:   ${summary.runtimeState?.skipped ? "check skipped" : summary.runtimeState?.ok ? "writable" : "not writable"}`);
   console.log(`Ready:     ${summary.ready ? "yes" : "no"}`);
@@ -326,7 +686,7 @@ function runDevLink({ alembicRoot, dryRun }) {
   const child = spawnSync("npm", args, {
     cwd: alembicRoot,
     encoding: "utf8",
-    env: process.env,
+    env: cleanNpmPrefixEnv(process.env),
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -341,6 +701,19 @@ function runDevLink({ alembicRoot, dryRun }) {
     stderr: child.stderr.trim(),
     stdout: child.stdout.trim(),
   };
+}
+
+function cleanNpmPrefixEnv(env) {
+  const next = { ...env };
+  // `npm --prefix AlembicTest run ...` 会把 prefix 传给子 npm；这里清掉，
+  // 避免 Alembic 的 `npm install -g .` 被错误安装到 AlembicTest/bin 和 lib/。
+  for (const key of Object.keys(next)) {
+    if (key.toLowerCase() === "npm_config_prefix") {
+      delete next[key];
+    }
+  }
+  delete next.PREFIX;
+  return next;
 }
 
 function runMonitor({ dashboardUrl, projectRoot, dataRoot, intervalMs, once }) {
@@ -365,7 +738,7 @@ function runMonitor({ dashboardUrl, projectRoot, dataRoot, intervalMs, once }) {
   const child = spawnSync(process.execPath, args, {
     cwd: workspaceRoot,
     encoding: "utf8",
-    env: process.env,
+    env: cleanNpmPrefixEnv(process.env),
     stdio: "inherit",
   });
   if (child.status !== 0) {
@@ -405,6 +778,15 @@ async function main() {
     const dryRunSummary = {
       alembicRoot,
       devLink: options.devLink ? runDevLink({ alembicRoot, dryRun: true }) : { skipped: true },
+      preclean: options.preclean
+        ? runPreclean({
+            cleanLogFiles: options.precleanCleanLogs,
+            dryRun: true,
+            projectRoot,
+            stopAllServices: options.precleanStopAllServices,
+            waitMs: options.precleanStopWaitMs,
+          })
+        : { skipped: true },
       runtimeState: options.runtimeWriteCheck
         ? { target: path.join(os.homedir(), ".asd", "runtime-control.json"), preflight: true }
         : { skipped: true },
@@ -445,6 +827,40 @@ async function main() {
     ? checkRuntimeStateWritable()
     : { ok: true, skipped: true };
 
+  const preclean = options.preclean
+    ? runPreclean({
+        cleanLogFiles: options.precleanCleanLogs,
+        dryRun: false,
+        projectRoot,
+        stopAllServices: options.precleanStopAllServices,
+        waitMs: options.precleanStopWaitMs,
+      })
+    : { skipped: true };
+
+  if (!preclean.skipped && preclean.ok === false) {
+    const summary = {
+      ok: false,
+      alembicRoot,
+      devLink: { skipped: true },
+      durationMs: 0,
+      error:
+        "Alembic preclean failed; rerun with elevated sandbox permissions so the script can inspect and stop existing services.",
+      exitCode: 1,
+      preclean,
+      projectRoot,
+      ready: false,
+      runtimeState,
+      workspaceRoot,
+    };
+    if (options.json) {
+      console.log(JSON.stringify(summary, null, 2));
+    } else {
+      printHuman(summary);
+    }
+    process.exitCode = 1;
+    return;
+  }
+
   const devLink = options.devLink
     ? runDevLink({ alembicRoot, dryRun: false })
     : { ok: true, skipped: true };
@@ -456,6 +872,7 @@ async function main() {
       durationMs: devLink.durationMs ?? 0,
       error: firstString(devLink.stderr, devLink.stdout, "Alembic dev:link failed"),
       exitCode: devLink.exitCode ?? 1,
+      preclean,
       projectRoot,
       ready: false,
       runtimeState,
@@ -478,7 +895,7 @@ async function main() {
   const child = spawnSync(process.execPath, commandArgs, {
     cwd: alembicRoot,
     encoding: "utf8",
-    env: process.env,
+    env: cleanNpmPrefixEnv(process.env),
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -500,6 +917,7 @@ async function main() {
     devLink,
     exitCode: child.status,
     pid: pidFromResult(cliResult),
+    preclean,
     projectRoot,
     ready,
     runtimeState,

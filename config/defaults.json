@@ -7,6 +7,12 @@
     "statusTimeoutMs": 3000,
     "monitorIntervalMs": 20000,
     "devLink": true,
+    "preclean": {
+      "enabled": true,
+      "stopAllServices": true,
+      "cleanLogs": true,
+      "stopWaitMs": 5000
+    },
     "runtimeWriteCheck": true,
     "statusProbe": true
   },
