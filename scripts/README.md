@@ -15,6 +15,14 @@ Scripts here should:
 
 Current scripts:
 
+- `probe-codex-prime.mjs`: read-only Codex MCP prime probe for real-project
+  plugin validation. It launches the Alembic Codex MCP stdio runtime from the
+  local `AlembicPlugin` repository with `ALEMBIC_PROJECT_DIR` pointing at the
+  target project, calls `alembic_codex_status`, then calls
+  `alembic_task(operation=prime)` and stores a JSON evidence packet under
+  `AlembicTest/tmp/`. Use it when a control test needs to verify that prime
+  returns `primeKnowledgeMaterial`, `hostResponse`, `shoutInstruction`, evidence
+  refs, and no fictional `codex_host_response` MCP tool.
 - `restart-alembic.mjs`: one-command local Alembic runtime restart for real
   project testing. It defaults to the workspace `BiliDili` project, first
   performs a clean-environment preflight that stops existing Alembic daemon
@@ -59,4 +67,10 @@ Monitor an already-running Alembic cold start:
 
 ```bash
 node AlembicTest/scripts/monitor-alembic-bootstrap.mjs --watch
+```
+
+Probe Codex prime against `BiliDili`:
+
+```bash
+node AlembicTest/scripts/probe-codex-prime.mjs
 ```

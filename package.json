@@ -9,6 +9,6 @@
     "restart:monitor": "node scripts/restart-alembic.mjs --monitor",
     "monitor": "node scripts/monitor-alembic-bootstrap.mjs",
     "monitor:watch": "node scripts/monitor-alembic-bootstrap.mjs --watch",
-    "check": "node scripts/restart-alembic.mjs --help && node scripts/monitor-alembic-bootstrap.mjs --help"
+    "check": "node scripts/restart-alembic.mjs --help && node scripts/monitor-alembic-bootstrap.mjs --help && node scripts/probe-codex-prime.mjs --help"
   }
 }
