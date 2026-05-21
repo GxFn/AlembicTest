@@ -23,7 +23,8 @@ Current scripts:
   `AlembicTest/tmp/`. Use it when a control test needs to verify that prime
   returns `primeKnowledgeMaterial`, `hostResponse`, `shoutInstruction`, evidence
   refs, immediate receipt timing fields (`timing`, `requiredBeforeNextAction`,
-  and `visibility`), and no fictional `codex_host_response` MCP tool.
+  and `visibility`), readable receipt-shout guidance that does not dump
+  evidence refs by default, and no fictional `codex_host_response` MCP tool.
 - `restart-alembic.mjs`: one-command local Alembic runtime restart for real
   project testing. It defaults to the workspace `BiliDili` project, first
   performs a clean-environment preflight that stops existing Alembic daemon

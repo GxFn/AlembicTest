@@ -122,6 +122,7 @@ try {
     acceptedKnowledgeCount: acceptedKnowledge.length,
     acceptedGuardCount: acceptedGuards.length,
     evidenceRefCount: evidenceRefs.length,
+    payloadEvidenceRefsRetained: evidenceRefs.length > 0,
     hostResponseAction: material?.hostResponse?.action ?? null,
     hostResponseRequired: material?.hostResponse?.required === true,
     hostResponseTiming: material?.hostResponse?.timing ?? null,
@@ -137,6 +138,16 @@ try {
     shoutInstructionImmediate:
       typeof material?.shoutInstruction === 'string' &&
       /immediate|before.+next action|先|下一/i.test(material.shoutInstruction),
+    shoutInstructionReadable:
+      typeof material?.shoutInstruction === 'string' &&
+      /short, active knowledge receipt|briefly and actively shout|可见|主动/i.test(
+        material.shoutInstruction
+      ),
+    shoutInstructionNoDefaultEvidenceDump:
+      typeof material?.shoutInstruction === 'string' &&
+      /do not (?:list|dump).*(?:evidenceRefs|paths|line numbers)|do not call out missing line numbers/i.test(
+        material.shoutInstruction
+      ),
     nextActionTools,
     nextActionsContainCodexHostResponse: nextActionTools.includes('codex_host_response'),
     serviceBoundaryExecutionPath: serviceBoundary?.executionPath ?? null,
@@ -150,6 +161,9 @@ try {
       serviceBoundary?.tool === 'alembic_task',
   };
   report.codexVisibleShout = buildCodexVisibleShout(material);
+  report.checks.codexVisibleShoutDefaultsDumpEvidenceRefs = detectsEvidenceDump(
+    report.codexVisibleShout
+  );
   report.ok =
     report.prime?.success === true &&
     report.checks.statusDelivered &&
@@ -158,6 +172,9 @@ try {
     report.checks.hostResponseAction === 'shout_prime_knowledge_receipt' &&
     report.checks.hostResponseRequired &&
     report.checks.hostResponseImmediateDeveloperVisible &&
+    report.checks.shoutInstructionReadable &&
+    report.checks.shoutInstructionNoDefaultEvidenceDump &&
+    !report.checks.codexVisibleShoutDefaultsDumpEvidenceRefs &&
     report.checks.serviceBoundaryPluginOwned &&
     !report.checks.nextActionsContainCodexHostResponse;
 } finally {
@@ -182,23 +199,39 @@ function buildCodexVisibleShout(material) {
 
   const knowledge = Array.isArray(material.acceptedKnowledge) ? material.acceptedKnowledge : [];
   const guards = Array.isArray(material.acceptedGuards) ? material.acceptedGuards : [];
+  const acceptedItems = [...knowledge, ...guards];
   const lines = [
-    `我已从 Alembic prime 接收到 BiliDili 项目知识：${knowledge.length} 条 Recipe，${guards.length} 条 Guard。`,
+    `Prime 收到了 BiliDili 的关键约束：${knowledge.length} 条 Recipe 和 ${guards.length} 条 Guard 已就位。`,
   ];
-  for (const item of [...knowledge, ...guards].slice(0, 6)) {
-    const refs = Array.isArray(item.evidenceRefs)
-      ? item.evidenceRefs
-          .slice(0, 3)
-          .map((ref) => `${ref.path}${ref.line ? `:${ref.line}` : ':行号缺失'}`)
-          .join(', ')
-      : '';
+  for (const item of acceptedItems.slice(0, 6)) {
+    const title = item.title || item.trigger || item.id;
     const hint = item.actionHint || item.summary || item.trigger || '';
-    lines.push(`- ${item.title || item.trigger || item.id}: ${hint}${refs ? `；证据 ${refs}` : ''}`);
+    lines.push(`- ${title}: ${summarizeActionHint(hint)}`);
   }
   if (material.hostResponse?.required) {
-    lines.push(`hostResponse 要求我先完成这次知识接收呐喊，receipt=${material.hostResponse.receiptId}。`);
+    lines.push(
+      '接下来我会先按这些约束判断模块边界、路由入口、初始化时机、UI 构建方式和命名规则；证据路径保留在 payload 中，需要复核时再展开。'
+    );
   }
   return lines.join('\n');
+}
+
+function summarizeActionHint(value) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return '已作为后续判断依据接收。';
+  }
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  const arrowIndex = normalized.indexOf('→');
+  const actionable = arrowIndex >= 0 ? normalized.slice(arrowIndex + 1).trim() : normalized;
+  return actionable.length > 180 ? `${actionable.slice(0, 177)}...` : actionable;
+}
+
+function detectsEvidenceDump(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const pathLikeMatches = value.match(/(?:^|\s)[\w./-]+\.(?:swift|md|ts|js)(?::\d+)?/g) ?? [];
+  return pathLikeMatches.length >= 2 || /行号缺失|missing line/i.test(value);
 }
 
 async function callJsonTool(client, name, args, timeoutMs) {
@@ -228,10 +261,15 @@ function summarizeReport(value) {
     acceptedKnowledgeCount: value.checks.acceptedKnowledgeCount,
     acceptedGuardCount: value.checks.acceptedGuardCount,
     evidenceRefCount: value.checks.evidenceRefCount,
+    payloadEvidenceRefsRetained: value.checks.payloadEvidenceRefsRetained,
     hostResponseAction: value.checks.hostResponseAction,
     hostResponseTiming: value.checks.hostResponseTiming,
     hostResponseRequiredBeforeNextAction: value.checks.hostResponseRequiredBeforeNextAction,
     hostResponseVisibility: value.checks.hostResponseVisibility,
+    shoutInstructionReadable: value.checks.shoutInstructionReadable,
+    shoutInstructionNoDefaultEvidenceDump: value.checks.shoutInstructionNoDefaultEvidenceDump,
+    codexVisibleShoutDefaultsDumpEvidenceRefs:
+      value.checks.codexVisibleShoutDefaultsDumpEvidenceRefs,
     serviceBoundaryExecutionPath: value.checks.serviceBoundaryExecutionPath,
     serviceBoundaryOwner: value.checks.serviceBoundaryOwner,
     serviceBoundaryResidentServiceRequested: value.checks.serviceBoundaryResidentServiceRequested,
