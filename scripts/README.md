@@ -35,7 +35,10 @@ Current scripts:
   fictional `codex_host_response` tool appeared. It also scans the direct search
   payload and MCP stderr for the removed `/api/v1/mcp/call` /
   `daemon-mcp-compat-bridge` path, so VEC-4R retests can distinguish bridge
-  removal from daemon resident telemetry gaps.
+  removal from daemon resident telemetry gaps. For VEC-5R retests it also
+  summarizes `codexRequestedMode` / `residentRequestMode`, flags `auto ->
+  semantic` resident request normalization, and keeps daemon `/api/v1/search`
+  `searchMeta` evidence in the JSON packet.
 - `restart-alembic.mjs`: one-command local Alembic runtime restart for real
   project testing. It defaults to the workspace `BiliDili` project, first
   performs a clean-environment preflight that stops existing Alembic daemon

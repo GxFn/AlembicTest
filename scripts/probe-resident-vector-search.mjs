@@ -203,6 +203,8 @@ try {
     directSemanticOrVectorUsed: directResidentSummaries.some(
       (summary) => summary.semanticUsed === true || summary.vectorUsed === true
     ),
+    directAutoNoValidationFailure: !detectsModeValidationFailure(searchSummaries.auto),
+    directAutoModeTranslated: detectsAutoToSemanticTranslation(searchSummaries.auto?.resident),
     directFallbackClear: directResidentSummaries.some(
       (summary) =>
         summary.attempted === true &&
@@ -252,6 +254,7 @@ function summarizeSearchPayload(result, requestedMode) {
     actualMode: stringFrom(data.mode) ?? requestedMode,
     degraded: data.degraded === true,
     degradedReason: stringFrom(data.degradedReason) ?? null,
+    searchMetaKeys: searchMeta ? Object.keys(searchMeta).sort() : [],
     totalResults: numberFrom(data.totalResults) ?? items.length,
     items: items.slice(0, 5).map(summarizeHit),
     resident: summarizeResidentMeta(searchMeta),
@@ -330,6 +333,7 @@ async function probeDaemonSearch(statusPayload, request) {
       total: numberFrom(data.total) ?? numberFrom(data.totalResults) ?? items.length,
       itemCount: items.length,
       searchMetaKeys: searchMeta ? Object.keys(searchMeta).sort() : [],
+      searchMeta: searchMeta ? sanitizeForReport(searchMeta) : null,
       resident: summarizeResidentMeta(searchMeta),
       hits: items.slice(0, 5).map(summarizeHit),
       // token 不进入输出；这里只记录 endpoint 的路径语义，避免长期报告带本机私密细节。
@@ -350,6 +354,11 @@ function summarizeResidentMeta(searchMeta) {
     : meta.route === 'alembic-resident-service' || meta.route === 'resident-search'
       ? meta
       : {};
+  const innerSearchMeta = isRecord(residentSearch.searchMeta)
+    ? residentSearch.searchMeta
+    : isRecord(meta.searchMeta)
+      ? meta.searchMeta
+      : null;
   const residentVector = isRecord(meta.residentVector)
     ? meta.residentVector
     : isRecord(residentSearch.residentVector)
@@ -365,6 +374,16 @@ function summarizeResidentMeta(searchMeta) {
     attempted: booleanFrom(residentSearch.attempted),
     available: booleanFrom(residentSearch.available),
     used: booleanFrom(residentSearch.used),
+    codexRequestedMode:
+      stringFrom(residentSearch.codexRequestedMode) ??
+      stringFrom(meta.codexRequestedMode) ??
+      stringFrom(innerSearchMeta?.codexRequestedMode) ??
+      null,
+    residentRequestMode:
+      stringFrom(residentSearch.residentRequestMode) ??
+      stringFrom(meta.residentRequestMode) ??
+      stringFrom(innerSearchMeta?.residentRequestMode) ??
+      null,
     semanticUsed: booleanFrom(residentSearch.semanticUsed) ?? booleanFrom(meta.semanticUsed),
     vectorUsed: booleanFrom(residentSearch.vectorUsed) ?? booleanFrom(meta.vectorUsed),
     requestedMode: stringFrom(residentSearch.requestedMode) ?? stringFrom(meta.requestedMode) ?? null,
@@ -375,6 +394,8 @@ function summarizeResidentMeta(searchMeta) {
     resultCount:
       numberFrom(residentSearch.resultCount) ?? numberFrom(meta.resultCount) ?? null,
     durationMs: numberFrom(residentSearch.durationMs) ?? numberFrom(meta.durationMs) ?? null,
+    searchMetaKeys: Object.keys(meta).sort(),
+    innerSearchMetaKeys: innerSearchMeta ? Object.keys(innerSearchMeta).sort() : [],
     residentVector: residentVector
       ? {
           available: booleanFrom(residentVector.available),
@@ -461,6 +482,12 @@ function classify(checks) {
   if (!checks.directSearchPluginOwned) {
     return 'search-boundary-regression';
   }
+  if (!checks.directAutoNoValidationFailure) {
+    return 'auto-mode-validation-regression';
+  }
+  if (!checks.directAutoModeTranslated) {
+    return 'missing-auto-mode-normalization-evidence';
+  }
   if (!checks.daemonSearchHasSearchMeta) {
     return 'daemon-missing-searchmeta';
   }
@@ -469,6 +496,9 @@ function classify(checks) {
   }
   if (checks.directResidentAvailable && checks.directResidentUsed && checks.directSemanticOrVectorUsed) {
     return 'resident-success';
+  }
+  if (checks.directResidentAvailable && checks.directResidentUsed) {
+    return 'resident-telemetry-missing';
   }
   if (checks.directFallbackClear && checks.baselineResultsAvailable) {
     return 'fallback-clear';
@@ -512,6 +542,8 @@ function summarizeReport(value) {
     directSearchSummaries: value.checks.directSearchSummaries,
     directSearchMessages: value.checks.directSearchMessages,
     directSearchServiceBoundaries: value.checks.directSearchServiceBoundaries,
+    directAutoNoValidationFailure: value.checks.directAutoNoValidationFailure,
+    directAutoModeTranslated: value.checks.directAutoModeTranslated,
     daemonSearchSummary: value.checks.daemonSearchSummary,
     removedBridgeScan: value.checks.removedBridgeScan,
     serviceBoundaryExecutionPath: value.checks.serviceBoundaryExecutionPath,
@@ -522,6 +554,34 @@ function summarizeReport(value) {
       value.checks.codexVisibleShoutDefaultsDumpEvidenceRefs,
     codexVisibleShout: value.codexVisibleShout,
   };
+}
+
+function detectsModeValidationFailure(summary) {
+  if (!summary) {
+    return false;
+  }
+  const resident = summary.resident ?? {};
+  const text = [
+    summary.degradedReason,
+    resident.fallbackReason,
+    resident.reason,
+    resident.residentVector?.reason,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return /Query parameter validation failed|mode=.*auto|validation/i.test(text);
+}
+
+function detectsAutoToSemanticTranslation(resident) {
+  if (!resident) {
+    return false;
+  }
+  const codexMode = resident.codexRequestedMode ?? resident.requestedMode;
+  return codexMode === 'auto' && resident.residentRequestMode === 'semantic';
+}
+
+function sanitizeForReport(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function resolveWorkspacePath(input) {
