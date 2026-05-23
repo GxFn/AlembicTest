@@ -63,9 +63,19 @@ Current scripts:
   `QualityGate`, timeout, cancellation, and failed dimensions. It must not call
   heavyweight Dashboard compatibility endpoints such as
   `/api/v1/modules/bootstrap/status` for routine monitoring.
+- `tmp-evidence-retention.mjs`: dry-run retention audit for ignored raw evidence
+  under `AlembicTest/tmp/`. It lists file age and cleanup candidates but never
+  deletes files; deleting raw evidence still requires explicit user or
+  control-plan authorization.
 
 Shared defaults live in `AlembicTest/config/defaults.json`. Override them with
 CLI flags for one-off verification instead of editing the script body.
+
+Audit ignored raw evidence without deleting it:
+
+```bash
+node AlembicTest/scripts/tmp-evidence-retention.mjs --max-age-days 0
+```
 
 Restart local Alembic for `BiliDili`:
 

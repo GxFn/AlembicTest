@@ -9,6 +9,7 @@
     "restart:monitor": "node scripts/restart-alembic.mjs --monitor",
     "monitor": "node scripts/monitor-alembic-bootstrap.mjs",
     "monitor:watch": "node scripts/monitor-alembic-bootstrap.mjs --watch",
-    "check": "node scripts/restart-alembic.mjs --help && node scripts/monitor-alembic-bootstrap.mjs --help && node scripts/probe-codex-prime.mjs --help && node scripts/probe-resident-vector-search.mjs --help"
+    "tmp:retention": "node scripts/tmp-evidence-retention.mjs",
+    "check": "node scripts/restart-alembic.mjs --help && node scripts/monitor-alembic-bootstrap.mjs --help && node scripts/probe-codex-prime.mjs --help && node scripts/probe-resident-vector-search.mjs --help && node scripts/tmp-evidence-retention.mjs --help"
   }
 }

@@ -43,6 +43,7 @@ Run from the workspace root:
 
 ```bash
 npm --prefix AlembicTest run check
+npm --prefix AlembicTest run tmp:retention -- --max-age-days 0
 node AlembicTest/scripts/restart-alembic.mjs --dry-run
 ```
 
@@ -50,6 +51,7 @@ Or from this repository:
 
 ```bash
 npm run check
+npm run tmp:retention -- --max-age-days 0
 node scripts/restart-alembic.mjs --dry-run
 ```
 
