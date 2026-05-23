@@ -35,6 +35,28 @@ AlembicTest/
 
 ## Common Commands
 
+Start with the safe self-check path when closing documentation or script
+changes. These commands print script help or planned actions only; they do not
+start Alembic, probe `BiliDili`, monitor a cold start, or clean runtime logs.
+
+Run from the workspace root:
+
+```bash
+npm --prefix AlembicTest run check
+node AlembicTest/scripts/restart-alembic.mjs --dry-run
+```
+
+Or from this repository:
+
+```bash
+npm run check
+node scripts/restart-alembic.mjs --dry-run
+```
+
+The commands below are authorized test paths. Use them only when the user or the
+current control plan explicitly asks AlembicTest to restart, monitor, or probe a
+real project flow.
+
 Run from the workspace root:
 
 ```bash
@@ -42,6 +64,8 @@ npm --prefix AlembicTest run restart
 npm --prefix AlembicTest run restart:monitor
 npm --prefix AlembicTest run monitor
 npm --prefix AlembicTest run monitor:watch
+node AlembicTest/scripts/probe-codex-prime.mjs
+node AlembicTest/scripts/probe-resident-vector-search.mjs
 ```
 
 Or from this repository:
@@ -51,6 +75,8 @@ npm run restart
 npm run restart:monitor
 npm run monitor
 npm run monitor:watch
+node scripts/probe-codex-prime.mjs
+node scripts/probe-resident-vector-search.mjs
 ```
 
 `scripts/restart-alembic.mjs` may need elevated Codex sandbox permissions
