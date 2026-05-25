@@ -54,12 +54,36 @@ Current scripts:
   `eventsUrl`, `developerViews`, retained/hidden counts, endpoint capability,
   socket `job:process-event` delivery, and whether `llm.input`, `llm.output`,
   `llm.reflection`, and `tool` events were produced.
+- `probe-dashboard-artifact-detail.mjs`: test-mode LLMI-P9 Dashboard artifact
+  detail probe. It requires `ALEMBIC_TEST_MODE=1`, starts a fixture Alembic API,
+  a temporary Dashboard Vite server, and headless Chrome, then verifies real
+  Dashboard DOM behavior for timeline projection, artifact detail loading /
+  success / failure / empty states, artifact metadata, `llmMetrics`,
+  `traceEnvelope`, and secret-boundary redaction. It stores screenshots, DOM
+  text, request logs, and a JSON summary under `AlembicTest/tmp/`; it does not
+  run a full cold-start or modify product source.
 - `probe-llm-input-layering.mjs`: test-mode LLMI-P4 probe for AlembicAgent
   input section assembly. It requires `ALEMBIC_TEST_MODE=1`, runs the targeted
   `llm-input-layering` Vitest suite, reuses the Test-05 correctness probe for
   `[object Promise]` / `code.read({ filePaths })` regression evidence, and
   stores a developer-safe JSON summary under `AlembicTest/tmp/`. It does not
   start a daemon, run full cold-start, or modify product source.
+- `probe-llm-observation-ledger.mjs`: test-mode LLMI-P6 probe for AlembicAgent
+  Observation Ledger runtime input. It requires `ALEMBIC_TEST_MODE=1`, verifies
+  the expected AlembicAgent Wave 3 commit, runs source targeted Vitest coverage,
+  creates a temporary runtime capture fixture, and stores JSON evidence for
+  retained `llm.input`, provider message ledger sections, raw debug-field
+  contraction, scratchpad priority, and Wave 1 / Wave 2 regression checks. It
+  does not start a daemon, run full cold-start, or modify product source.
+- `probe-package-runtime-integration.mjs`: test-mode LLMI-P11 probe for the
+  AlembicAgent staged package/runtime integration gate. It requires
+  `ALEMBIC_TEST_MODE=1`, verifies the Wave 6A source commit and staged manifest,
+  dry-runs `npm pack`, creates a temporary package-shape `node_modules` harness,
+  imports `@alembic/agent/runtime`, `@alembic/agent/memory`, and
+  `@alembic/agent/tools/v2` from `tmp/release/@alembic-agent`, executes
+  `code.read({ filePaths })`, builds an Observation Ledger, and assembles the
+  LLM input runtime layer without starting a daemon, running cold-start, or
+  modifying product source.
 - `restart-alembic.mjs`: one-command local Alembic runtime restart for real
   project testing. It uses `AlembicTest/config/defaults.json` for its CLI
   fallback project, while `AlembicWorkspace` and `BiliDili` are both valid
@@ -155,8 +179,26 @@ Probe cold-start process timeline behavior:
 node AlembicTest/scripts/probe-cold-start-process-timeline.mjs --max-files 24 --content-max-lines 80
 ```
 
+Probe Dashboard artifact detail behavior in test mode:
+
+```bash
+ALEMBIC_TEST_MODE=1 node AlembicTest/scripts/probe-dashboard-artifact-detail.mjs
+```
+
 Probe AlembicAgent LLM input layering in test mode:
 
 ```bash
 ALEMBIC_TEST_MODE=1 node AlembicTest/scripts/probe-llm-input-layering.mjs
+```
+
+Probe AlembicAgent Observation Ledger in test mode:
+
+```bash
+ALEMBIC_TEST_MODE=1 node AlembicTest/scripts/probe-llm-observation-ledger.mjs
+```
+
+Probe AlembicAgent staged package/runtime integration in test mode:
+
+```bash
+ALEMBIC_TEST_MODE=1 node AlembicTest/scripts/probe-package-runtime-integration.mjs
 ```
