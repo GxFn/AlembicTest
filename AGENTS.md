@@ -8,7 +8,9 @@ Agent 不得在本目录中复制 Alembic、AlembicCore、AlembicAgent、Alembic
 
 当 Agent 的计划涉及修改真实产品代码、清理用户项目、重建 Alembic 数据、取消后台任务、切换全局配置、删除缓存、提交代码或改变测试范围时，必须先确认当前总控文档或用户口头授权。
 
-不要在旧工作区或旧克隆路径下工作；当前统一以本 workspace 内的 Alembic 系列仓库、`BiliDili` 和本 `AlembicTest` 目录为准。
+不要在旧工作区或旧克隆路径下工作；当前统一以本 workspace 内的 Alembic 系列仓库、`AlembicWorkspace` 控制工作区、`BiliDili` 和本 `AlembicTest` 目录为准。
+
+当前可作为 AlembicTest 真实验证目标的项目包括 `AlembicWorkspace` 和 `BiliDili`。两者都不是临时 demo：`AlembicWorkspace` 用于 Alembic 自身 multi-root / self-hosting 集成验证，`BiliDili` 用于真实 iOS/Swift 业务项目验证。每次测试必须以用户口头要求或当前总控测试单为准选择目标；不得再默认把 BiliDili 当成唯一测试项目。
 
 ## 文档存储提示
 
@@ -23,7 +25,7 @@ Agent 不得在本目录中复制 Alembic、AlembicCore、AlembicAgent、Alembic
 ## 窗口定位
 
 - `AlembicTest` 是 AlembicWorkspace 的独立测试验证窗口，用来承接总控分配的复现、冒烟、回归、冷启动监控、跨仓库集成验证和证据整理。
-- 本窗口不是 `Alembic`、`AlembicCore`、`AlembicAgent`、`AlembicDashboard`、`AlembicPlugin` 或 `BiliDili` 的替代开发窗口。
+- 本窗口不是 `Alembic`、`AlembicCore`、`AlembicAgent`、`AlembicDashboard`、`AlembicPlugin`、`AlembicWorkspace` 或 `BiliDili` 的替代开发窗口。
 - 本窗口可以读取相关仓库代码、运行验证命令、启动或观察测试所需服务，但不得把产品修复直接写在 `AlembicTest` 中。
 - 如果验证任务需要修改源代码，应把问题、证据、建议修复仓库和最小复现路径回填给总控，由总控分派到对应产品窗口。
 - 如果用户明确要求本窗口直接修复某个仓库，也必须先读取目标仓库自己的 `AGENTS.md`，并遵守该仓库边界；测试窗口身份不覆盖源仓库规则。
@@ -32,7 +34,7 @@ Agent 不得在本目录中复制 Alembic、AlembicCore、AlembicAgent、Alembic
 
 - 可以做：复现步骤整理、命令封装、日志观察、API 状态检查、Dashboard 行为记录、冷启动/重建流程监控、跨仓库 smoke、测试数据说明和验证报告。
 - 可以做：在总控授权下运行 Alembic CLI、daemon、Dashboard、Codex plugin、本地测试脚本和真实项目只读扫描。
-- 不要做：在本目录实现 Alembic runtime、Agent runtime、Dashboard UI、Plugin MCP、Core API 或 BiliDili 产品功能。
+- 不要做：在本目录实现 Alembic runtime、Agent runtime、Dashboard UI、Plugin MCP、Core API、AlembicWorkspace 总控功能或 BiliDili 产品功能。
 - 不要做：为了让测试通过而改动真实业务项目结构、删除用户数据、隐藏失败日志、绕过 QualityGate、伪造候选或把未验证命令写成通过。
 - 不要做：长期依赖本目录里的 mock 替代真实调用链。测试可以有 fixture，但最终结论必须回到真实入口、真实数据、真实状态变化和真实消费方。
 
@@ -41,8 +43,10 @@ Agent 不得在本目录中复制 Alembic、AlembicCore、AlembicAgent、Alembic
 - 先读取当前总控文档、目标仓库 `AGENTS.md`、相关脚本说明和真实入口，再执行测试。
 - 只改本目录说明或测试文档时，通常不需要跑产品构建，但必须说明未运行构建的原因。
 - 验证 Alembic 主仓库 CLI / daemon / Dashboard 时，优先使用 `Alembic` 仓库已有脚本和当前总控文档指定命令，不要临时发明另一套启动路径。
+- 测试中只要启动或使用 Dashboard、本地 Web UI、localhost 前端页面，就必须同时在 Codex 右侧 in-app browser 打开对应页面，优先打开当前测试最相关的目标 URL（如 Jobs/Candidates/具体 job 页面），方便用户实时查看；不要只在报告或终端里写 URL。
 - 验证 AlembicAgent 行为时，必须关注真实 LLM/tool 调用闭环、日志、取消、timeout、retry、fallback、QualityGate 和 memory / note_finding 证据。
 - 验证 Dashboard 时，必须关注用户可见状态、轮询 API、任务状态分类、取消/失败/完成归类、按钮行为和错误展示。
+- 验证 AlembicWorkspace 时，把它当 Alembic 自身真实 multi-root / self-hosting 测试项目保护；默认只按总控测试单做 ProjectScope、Plugin、Dashboard、daemon/API、source folder no-write 等最小复测，不提交 workspace 仓库，不把 workspace 根目录加入 source `folders[]`，不把总控文档治理和产品源码修复混在同一测试动作里。
 - 验证 BiliDili 时，把它当真实 iOS/Swift 项目保护；默认只做只读扫描、冷启动验证或总控明确要求的最小回归，不要改业务代码。
 - 如果命令无法运行，记录原因、环境限制和下一步建议，不能把未运行命令写成通过。
 

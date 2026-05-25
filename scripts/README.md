@@ -39,8 +39,31 @@ Current scripts:
   summarizes `codexRequestedMode` / `residentRequestMode`, flags `auto ->
   semantic` resident request normalization, and keeps daemon `/api/v1/search`
   `searchMeta` evidence in the JSON packet.
+- `probe-unified-resident-service.mjs`: read-only Codex MCP integration probe
+  for the unified resident-service contract. It records baseline unavailable
+  behavior or ready local-resident behavior for `alembic_codex_status`,
+  diagnostics, Dashboard handoff, job status, prime, direct `alembic_search`
+  auto/semantic, and direct daemon `/api/v1/search` / `/api/v1/jobs` evidence.
+  It also scans probe payloads for removed `/api/v1/mcp/call`,
+  `/api/v1/projects/*`, and `daemon-mcp-compat-bridge` paths.
+- `probe-cold-start-process-timeline.mjs`: real-project cold-start process
+  timeline probe. It uses the active local Alembic daemon for the target project,
+  checks daemon health, opens a Socket.io notifications listener, enqueues one
+  bounded bootstrap job through `/api/v1/jobs/bootstrap`, polls the job events
+  endpoint, and stores JSON evidence under `AlembicTest/tmp/`. It records
+  `eventsUrl`, `developerViews`, retained/hidden counts, endpoint capability,
+  socket `job:process-event` delivery, and whether `llm.input`, `llm.output`,
+  `llm.reflection`, and `tool` events were produced.
+- `probe-llm-input-layering.mjs`: test-mode LLMI-P4 probe for AlembicAgent
+  input section assembly. It requires `ALEMBIC_TEST_MODE=1`, runs the targeted
+  `llm-input-layering` Vitest suite, reuses the Test-05 correctness probe for
+  `[object Promise]` / `code.read({ filePaths })` regression evidence, and
+  stores a developer-safe JSON summary under `AlembicTest/tmp/`. It does not
+  start a daemon, run full cold-start, or modify product source.
 - `restart-alembic.mjs`: one-command local Alembic runtime restart for real
-  project testing. It defaults to the workspace `BiliDili` project, first
+  project testing. It uses `AlembicTest/config/defaults.json` for its CLI
+  fallback project, while `AlembicWorkspace` and `BiliDili` are both valid
+  real-project targets when the active test order selects them. It first
   performs a clean-environment preflight that stops existing Alembic daemon
   processes / stale AlembicTest monitors and removes old `.asd/daemon.log` plus
   `.asd/logs/` files from known Alembic data roots. It then runs
@@ -68,8 +91,11 @@ Current scripts:
   deletes files; deleting raw evidence still requires explicit user or
   control-plan authorization.
 
-Shared defaults live in `AlembicTest/config/defaults.json`. Override them with
-CLI flags for one-off verification instead of editing the script body.
+Shared defaults live in `AlembicTest/config/defaults.json`. The config lists
+both supported real-project targets: `AlembicWorkspace` for Alembic self-hosting
+/ multi-root checks and `BiliDili` for the iOS/Swift business project checks.
+Override the target with CLI flags for one-off verification instead of editing
+the script body.
 
 Audit ignored raw evidence without deleting it:
 
@@ -77,10 +103,17 @@ Audit ignored raw evidence without deleting it:
 node AlembicTest/scripts/tmp-evidence-retention.mjs --max-age-days 0
 ```
 
-Restart local Alembic for `BiliDili`:
+Restart local Alembic for the configured fallback target:
 
 ```bash
 node AlembicTest/scripts/restart-alembic.mjs
+```
+
+Restart local Alembic for an explicit target:
+
+```bash
+node AlembicTest/scripts/restart-alembic.mjs --project AlembicWorkspace
+node AlembicTest/scripts/restart-alembic.mjs --project BiliDili
 ```
 
 Restart local Alembic and monitor cold-start progress:
@@ -95,14 +128,35 @@ Monitor an already-running Alembic cold start:
 node AlembicTest/scripts/monitor-alembic-bootstrap.mjs --watch
 ```
 
-Probe Codex prime against `BiliDili`:
+Probe Codex prime against the fallback target or an explicit target:
 
 ```bash
 node AlembicTest/scripts/probe-codex-prime.mjs
+node AlembicTest/scripts/probe-codex-prime.mjs --project AlembicWorkspace --query "<target-specific prompt>"
 ```
 
-Probe resident vector search against `BiliDili`:
+Probe resident vector search against the fallback target or an explicit target:
 
 ```bash
 node AlembicTest/scripts/probe-resident-vector-search.mjs
+node AlembicTest/scripts/probe-resident-vector-search.mjs --project AlembicWorkspace --prime-query "<target-specific prompt>" --search-query "<target-specific query>"
+```
+
+Probe unified resident-service behavior:
+
+```bash
+node AlembicTest/scripts/probe-unified-resident-service.mjs --phase baseline
+node AlembicTest/scripts/probe-unified-resident-service.mjs --phase resident
+```
+
+Probe cold-start process timeline behavior:
+
+```bash
+node AlembicTest/scripts/probe-cold-start-process-timeline.mjs --max-files 24 --content-max-lines 80
+```
+
+Probe AlembicAgent LLM input layering in test mode:
+
+```bash
+ALEMBIC_TEST_MODE=1 node AlembicTest/scripts/probe-llm-input-layering.mjs
 ```

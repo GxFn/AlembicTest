@@ -9,7 +9,9 @@
     "restart:monitor": "node scripts/restart-alembic.mjs --monitor",
     "monitor": "node scripts/monitor-alembic-bootstrap.mjs",
     "monitor:watch": "node scripts/monitor-alembic-bootstrap.mjs --watch",
+    "probe:cold-start-timeline": "node scripts/probe-cold-start-process-timeline.mjs",
+    "probe:llm-input-layering": "node scripts/probe-llm-input-layering.mjs",
     "tmp:retention": "node scripts/tmp-evidence-retention.mjs",
-    "check": "node scripts/restart-alembic.mjs --help && node scripts/monitor-alembic-bootstrap.mjs --help && node scripts/probe-codex-prime.mjs --help && node scripts/probe-resident-vector-search.mjs --help && node scripts/tmp-evidence-retention.mjs --help"
+    "check": "node scripts/restart-alembic.mjs --help && node scripts/monitor-alembic-bootstrap.mjs --help && node scripts/probe-codex-prime.mjs --help && node scripts/probe-resident-vector-search.mjs --help && node scripts/probe-unified-resident-service.mjs --help && node scripts/probe-cold-start-process-timeline.mjs --help && node scripts/probe-llm-input-layering.mjs --help && node scripts/tmp-evidence-retention.mjs --help"
   }
 }

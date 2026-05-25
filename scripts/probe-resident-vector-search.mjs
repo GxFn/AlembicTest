@@ -82,6 +82,8 @@ const report = {
   language: options.language,
   tools: [],
   status: null,
+  diagnostics: null,
+  health: null,
   prime: null,
   searches: {},
   checks: {},
@@ -104,6 +106,15 @@ try {
   report.tools = toolsResult.tools.map((tool) => tool.name).sort();
 
   report.status = await callJsonTool(client, 'alembic_codex_status', {}, options.timeoutMs);
+  report.diagnostics = await callJsonTool(
+    client,
+    'alembic_codex_diagnostics',
+    {},
+    options.timeoutMs
+  );
+  if (report.tools.includes('alembic_health')) {
+    report.health = await callJsonTool(client, 'alembic_health', {}, options.timeoutMs);
+  }
 
   const primeArgs = {
     operation: 'prime',
@@ -171,8 +182,18 @@ try {
   report.codexVisibleShout = buildCodexVisibleShout(material, directResidentSummaries);
   report.checks = {
     toolCount: report.tools.length,
+    toolListContainsAlembicTask: report.tools.includes('alembic_task'),
+    toolListContainsAlembicSearch: report.tools.includes('alembic_search'),
+    toolListContainsAlembicHealth: report.tools.includes('alembic_health'),
     toolListContainsCodexHostResponse: report.tools.includes('codex_host_response'),
     statusInitialized: report.status?.data?.initialized === true,
+    statusProjectScopeIdentity: summarizeProjectScopeIdentity(
+      report.status?.data?.projectScopeIdentity
+    ),
+    diagnosticsProjectScopeIdentity: summarizeProjectScopeIdentity(
+      report.diagnostics?.data?.projectScopeIdentity
+    ),
+    healthSuccess: report.health?.success === true,
     knowledgeStatus: report.status?.data?.knowledge?.status ?? null,
     vectorStatus: report.status?.data?.vectors?.status ?? report.status?.data?.vector?.status ?? null,
     primeSuccess: report.prime?.success === true,
@@ -533,6 +554,13 @@ function summarizeReport(value) {
     durationMs: value.durationMs,
     project: value.project,
     initialized: value.status?.data?.initialized,
+    toolCount: value.checks.toolCount,
+    toolListContainsAlembicTask: value.checks.toolListContainsAlembicTask,
+    toolListContainsAlembicSearch: value.checks.toolListContainsAlembicSearch,
+    toolListContainsAlembicHealth: value.checks.toolListContainsAlembicHealth,
+    statusProjectScopeIdentity: value.checks.statusProjectScopeIdentity,
+    diagnosticsProjectScopeIdentity: value.checks.diagnosticsProjectScopeIdentity,
+    healthSuccess: value.checks.healthSuccess,
     knowledgeStatus: value.checks.knowledgeStatus,
     vectorStatus: value.checks.vectorStatus,
     primeStatus: value.checks.primeStatus,
@@ -554,6 +582,34 @@ function summarizeReport(value) {
       value.checks.codexVisibleShoutDefaultsDumpEvidenceRefs,
     codexVisibleShout: value.codexVisibleShout,
   };
+}
+
+function summarizeProjectScopeIdentity(identity) {
+  if (!isRecord(identity)) {
+    return null;
+  }
+  return {
+    available: booleanFrom(identity.available),
+    controlRootRelative: displayWorkspacePath(identity.controlRoot),
+    currentFolderPathRelative: displayWorkspacePath(identity.currentFolderPath),
+    dataRootRelative: displayWorkspacePath(identity.dataRoot),
+    folderCount: numberFrom(identity.folderCount) ?? null,
+    mode: stringFrom(identity.mode) ?? null,
+    projectId: stringFrom(identity.projectId) ?? null,
+    projectScopeId: stringFrom(identity.projectScopeId) ?? null,
+    reason: stringFrom(identity.reason) ?? null,
+    serviceScopeId: stringFrom(identity.serviceScopeId) ?? null,
+    source: stringFrom(identity.source) ?? null,
+    storageKind: stringFrom(identity.storageKind) ?? null,
+  };
+}
+
+function displayWorkspacePath(value) {
+  if (typeof value !== 'string' || value.length === 0) {
+    return null;
+  }
+  const rel = relative(workspaceRoot, value);
+  return rel.length > 0 && !rel.startsWith('..') ? rel : value;
 }
 
 function detectsModeValidationFailure(summary) {

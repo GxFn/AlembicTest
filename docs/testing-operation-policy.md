@@ -13,14 +13,14 @@
 - 启动或重启 Alembic 测试运行时。
 - 点击或触发 cold-start / rescan / clean rebuild。
 - 监控 Dashboard、Jobs API、daemon 日志或候选产出。
-- 对 `BiliDili` 等真实项目执行 smoke、复现或回归。
+- 对 `AlembicWorkspace`、`BiliDili` 或总控明确授权的其它真实项目执行 smoke、复现或回归。
 - 记录测试现象、失败原因、TODO、验证报告和后续建议。
 
 ## 配置归属
 
 测试默认配置放在 `AlembicTest/config/defaults.json`：
 
-- 默认测试目标项目。
+- legacy 默认测试目标项目，以及当前明确可选的真实测试项目清单。
 - Alembic 本地仓库路径。
 - restart / stop / status 等等待时间。
 - monitor 轮询、超时、日志 tail 和信号匹配规则。
