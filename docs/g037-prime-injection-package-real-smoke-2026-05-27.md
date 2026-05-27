@@ -38,7 +38,7 @@
 真实 daemon / Codex.app Node 尝试：
 
 ```text
-ALEMBIC_TEST_MODE=1 node Alembic/dist/bin/cli.js start --project-root /Users/gaoxuefeng/Documents/AlembicWorkspace --wait 10000 --no-open --json
+ALEMBIC_TEST_MODE=1 node Alembic/dist/bin/cli.js start --project-root <workspace-root> --wait 10000 --no-open --json
 ```
 
 结果：阻塞。`daemon.log` 显示 `better_sqlite3.node` 因 hardened-runtime Team ID mismatch 无法 dlopen。
@@ -46,7 +46,7 @@ ALEMBIC_TEST_MODE=1 node Alembic/dist/bin/cli.js start --project-root /Users/gao
 embedded runtime smoke：
 
 ```text
-/Users/gaoxuefeng/.nvm/versions/node/v22.22.1/bin/node AlembicTest/scripts/probe-prime-injection-package-smoke.mjs --daemon-start-blocked --daemon-start-blocked-reason "Codex.app Node blocked by hardened-runtime Team ID mismatch; Node 24 blocked by NODE_MODULE_VERSION mismatch; nvm Node 22.22.1 matches runtime better-sqlite3 and was used for this smoke" --output AlembicTest/tmp/g037-stage6a-prime-package-smoke-2026-05-27.json --timeout-ms 90000
+<node-22-binary> AlembicTest/scripts/probe-prime-injection-package-smoke.mjs --daemon-start-blocked --daemon-start-blocked-reason "Codex.app Node blocked by hardened-runtime Team ID mismatch; Node 24 blocked by NODE_MODULE_VERSION mismatch; nvm Node 22.22.1 matches runtime better-sqlite3 and was used for this smoke" --output AlembicTest/tmp/g037-stage6a-prime-package-smoke-2026-05-27.json --timeout-ms 90000
 ```
 
 结果：`ok=true`，`classification=passed`。

@@ -92,6 +92,26 @@ Current scripts:
   `code.read({ filePaths })`, builds an Observation Ledger, and assembles the
   LLM input runtime layer without starting a daemon, running cold-start, or
   modifying product source.
+- `probe-pcv-canonical-source-baseline.mjs`: source-readonly PCVM Test-01
+  probe for the canonical `progressive-chain-validation` source baseline. It
+  verifies the expected PCV / Alembic / AlembicPlugin commits, checks the PCV
+  metrics contract, plan template, and Alembic N9 baseline example, confirms
+  Alembic and AlembicPlugin no longer depend on an internal
+  `skills/progressive-chain-validation` checkout, and writes a minimal N9
+  scorecard fixture plus JSON evidence under `AlembicTest/tmp/`. When no real
+  N9 artifact / trace / metric / source-ref link exists, it records
+  `blocked-by-observability-gap` instead of inventing a quality score. For
+  cleanup reruns, use the `--expected-*-commit` overrides to bind the probe to
+  the repaired consumer commits without rewriting the historical baseline.
+- `probe-pcv-n9-observability-linkage.mjs`: test-mode PCVM Test-11 probe for
+  the N9 observability linkage handoff between `AlembicAgent` and `Alembic`.
+  It verifies the expected Wave 3A commits, runs targeted product tests,
+  generates a temporary Vitest fixture that calls the real Agent
+  `pcvNodeEvidence` helper and Alembic carry helper, stores fixture / plan /
+  JSON evidence under `AlembicTest/tmp/`, and reports whether nested
+  `metadata.pcvNodeEvidence` reaches job-level `pcvN9Observability` or remains
+  `blocked-by-observability-gap`. It does not run full cold-start / rescan or
+  modify product source.
 - `restart-alembic.mjs`: one-command local Alembic runtime restart for real
   project testing. It uses `AlembicTest/config/defaults.json` for its CLI
   fallback project, while `AlembicWorkspace` and `BiliDili` are both valid
@@ -177,7 +197,7 @@ node AlembicTest/scripts/probe-resident-vector-search.mjs --project AlembicWorks
 Probe PrimeInjectionPackage projection through embedded Plugin runtime:
 
 ```bash
-/Users/gaoxuefeng/.nvm/versions/node/v22.22.1/bin/node AlembicTest/scripts/probe-prime-injection-package-smoke.mjs
+<node-22-binary> AlembicTest/scripts/probe-prime-injection-package-smoke.mjs
 ```
 
 Probe unified resident-service behavior:
@@ -215,4 +235,16 @@ Probe AlembicAgent staged package/runtime integration in test mode:
 
 ```bash
 ALEMBIC_TEST_MODE=1 node AlembicTest/scripts/probe-package-runtime-integration.mjs
+```
+
+Probe PCV canonical source baseline:
+
+```bash
+node AlembicTest/scripts/probe-pcv-canonical-source-baseline.mjs
+```
+
+Probe PCV N9 observability linkage:
+
+```bash
+node AlembicTest/scripts/probe-pcv-n9-observability-linkage.mjs
 ```

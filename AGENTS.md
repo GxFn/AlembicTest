@@ -12,6 +12,13 @@ Agent 不得在本目录中复制 Alembic、AlembicCore、AlembicAgent、Alembic
 
 当前可作为 AlembicTest 真实验证目标的项目包括 `AlembicWorkspace` 和 `BiliDili`。两者都不是临时 demo：`AlembicWorkspace` 用于 Alembic 自身 multi-root / self-hosting 集成验证，`BiliDili` 用于真实 iOS/Swift 业务项目验证。每次测试必须以用户口头要求或当前总控测试单为准选择目标；不得再默认把 BiliDili 当成唯一测试项目。
 
+## Visible Automation Dispatch
+
+- 如果本窗口通过 AlembicWorkspace 的 Visible Automation Dispatch heartbeat 唤醒，先读取 workspace `AGENTS.md`、当前总控文档、`skills/dev/visible-automation-dispatch-target/SKILL.md` 和本文件。
+- 只允许 claim / finish `AlembicTest` 目标任务；不得代领、处理、验证或总结其它窗口任务。
+- VAD smoke 中的 `AlembicTest` 可以只是非测试型可见窗口目标；除非当前总控文档或测试单明确要求真实测试，否则不得运行真实项目测试、cold-start、Dashboard 手动观察或回归验证。
+- 下一跳 heartbeat 只是投递信封；只有 finish JSON 明确 `handoffPolicy=target-courier` 且 `courierAllowed=true` 时，才可按 payload 创建下一条 automation 并 record-arm。不得 claim / finish 下一窗口任务。
+
 ## 文档存储提示
 
 - 新建长期测试计划、复现记录、验收记录、监控记录、问题清单和验证报告时，优先写到本测试窗口顶层 `docs/`，也就是 `AlembicTest/docs/`，不要散落到 Alembic 产品仓库内部或 workspace `docs/` 根层级。
