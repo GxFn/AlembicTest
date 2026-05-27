@@ -39,6 +39,14 @@ Current scripts:
   summarizes `codexRequestedMode` / `residentRequestMode`, flags `auto ->
   semantic` resident request normalization, and keeps daemon `/api/v1/search`
   `searchMeta` evidence in the JSON packet.
+- `probe-prime-injection-package-smoke.mjs`: test-mode G037 Stage 6A smoke for
+  `PrimeInjectionPackage` runtime projection. It creates a temporary fixture
+  project, writes local daemon state, starts a short-lived resident-shaped HTTP
+  service on `127.0.0.1`, launches the embedded Alembic Codex Plugin runtime
+  MCP server, and verifies that `searchMeta.primeInjectionPackage` reaches
+  Codex-facing `alembic_search`, `alembic_task prime`, prime material, and
+  IntentEpisode start / outcome handoff metadata. It does not run full
+  cold-start / rescan, open Dashboard UI, or modify product source.
 - `probe-unified-resident-service.mjs`: read-only Codex MCP integration probe
   for the unified resident-service contract. It records baseline unavailable
   behavior or ready local-resident behavior for `alembic_codex_status`,
@@ -164,6 +172,12 @@ Probe resident vector search against the fallback target or an explicit target:
 ```bash
 node AlembicTest/scripts/probe-resident-vector-search.mjs
 node AlembicTest/scripts/probe-resident-vector-search.mjs --project AlembicWorkspace --prime-query "<target-specific prompt>" --search-query "<target-specific query>"
+```
+
+Probe PrimeInjectionPackage projection through embedded Plugin runtime:
+
+```bash
+/Users/gaoxuefeng/.nvm/versions/node/v22.22.1/bin/node AlembicTest/scripts/probe-prime-injection-package-smoke.mjs
 ```
 
 Probe unified resident-service behavior:
