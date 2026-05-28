@@ -22,6 +22,10 @@
 
 - legacy 默认测试目标项目，以及当前明确可选的真实测试项目清单。
 - Alembic 本地仓库路径。
+- AI 配置 fallback：先读取当前目标项目在 Alembic Ghost / standard runtime
+  中的 AI 配置；如果目标项目没有 provider/key，可使用
+  `ai.defaultSourceProject` 指向的默认测试 AI 配置。脚本和报告只允许写配置来源、
+  provider/model 和 key presence，不允许写 secret 值。
 - restart / stop / status 等等待时间。
 - monitor 轮询、超时、日志 tail 和信号匹配规则。
 

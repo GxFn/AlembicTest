@@ -27,6 +27,7 @@
 ### VAD 最小门禁
 
 - Automation 只是唤醒信封，不改变本窗口职责，也不扩大任务范围；具体任务仍以 claim 结果和当前计划为准。
+- VAD heartbeat 提示词只承载动态变量、规则名和 skill 指向；不得把提示词当成完整命令手册。用 `currentWindow` / `taskId` / `controlDoc` 等变量按 target skill 推导命令，变量缺失或冲突时停止回报。
 - VAD 模式下只允许 claim / finish `AlembicTest` 对应任务；`claim --json` 没有返回本窗口任务时必须停止。
 - 只有 finish JSON 同时明确允许下一跳时，才可创建下一条 heartbeat；否则停止并回报总控。
 - 非 TestWindow 不得创建、处理或验证 TestWindow heartbeat，除非当前计划和 finish JSON 同时显式授权。
@@ -70,6 +71,7 @@
 - 如果当前总控文档明确要求把证据回填到某个 wave 文档，应按该文档指定位置回填，并同时在 `../workspace-ledger/AlembicTest/` 保存必要的长期验证材料。
 - 本目录内只保留测试窗口自身的 `AGENTS.md`、临时可复用脚本、测试 fixtures、说明文件或总控明确授权的辅助资产；不要把跨仓库协作长期文档直接堆在本目录。
 - 测试默认目标、等待时间、监控轮询、日志信号匹配等测试配置统一写到 `config/`；不要把这些配置散落到总控 `AGENTS.md` 或 workspace 根 `scripts/`。
+- AI 测试配置优先读取当前目标项目在 Alembic Ghost / standard runtime 中的 `settings.json` / `secrets.json`；目标项目没有可用 AI 配置时，允许按 `config/defaults.json` 的 `ai.defaultSourceProject` 使用默认测试 AI 配置。只能报告配置来源、provider/model 和 key 是否存在，不能打印、复制或提交 secret 值。
 - 测试执行归属、配置归属和回填要求以 `docs/testing-operation-policy.md` 为准。
 - 长期文档不得写入用户本机绝对路径、API key、Cookie、token、登录态、设备 UDID 或其它私密信息。需要记录路径时，优先使用 workspace 相对路径或说明性占位。
 

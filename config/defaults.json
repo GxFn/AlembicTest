@@ -1,5 +1,9 @@
 {
   "defaultProject": "BiliDili",
+  "ai": {
+    "defaultSourceProject": "BiliDili",
+    "fallbackToDefaultProject": true
+  },
   "testProjects": [
     {
       "name": "AlembicWorkspace",

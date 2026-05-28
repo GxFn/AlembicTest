@@ -6,6 +6,8 @@ should not keep ad hoc testing defaults in root scripts or root docs.
 `defaults.json` defines:
 
 - default real-project verification target for legacy commands;
+- default AI config source project for tests whose selected target has no usable
+  Alembic AI settings in Ghost or standard runtime storage;
 - explicit real-project verification targets currently recognized by
   AlembicTest: `AlembicWorkspace` and `BiliDili`;
 - Alembic repository path for local runtime smoke;
@@ -19,6 +21,12 @@ should not keep ad hoc testing defaults in root scripts or root docs.
 user request or `docs/workspace/current/alembic-test-exchange.md` decides
 whether the target is `AlembicWorkspace`, `BiliDili`, or another explicitly
 authorized project path.
+
+`ai.defaultSourceProject` is a runtime fallback, not a source-code dependency.
+When `restart-alembic.mjs` starts Alembic for a project that has no usable AI
+configuration, it may inject the Ghost-mode AI settings/secrets from this source
+project into the child process. The script only reports provider/model and
+boolean key presence; it must never print or persist secret values.
 
 Do not store secrets, API keys, local credentials, absolute user paths, or
 project-private runtime data in this folder. Runtime-specific values should be

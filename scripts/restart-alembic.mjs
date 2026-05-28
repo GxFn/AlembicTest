@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
+  realpathSync,
   readFileSync,
   readdirSync,
   rmSync,
@@ -37,6 +39,48 @@ const DEFAULT_PRECLEAN_STOP_WAIT_MS = numberConfig(
   TEST_CONFIG.restart?.preclean?.stopWaitMs,
   DEFAULT_STOP_WAIT_MS,
 );
+const DEFAULT_AI_SOURCE_PROJECT = stringConfig(TEST_CONFIG.ai?.defaultSourceProject, DEFAULT_PROJECT);
+const DEFAULT_AI_FALLBACK_ENABLED = booleanConfig(TEST_CONFIG.ai?.fallbackToDefaultProject, true);
+
+const PROVIDER_KEY_ENV = {
+  google: "ALEMBIC_GOOGLE_API_KEY",
+  openai: "ALEMBIC_OPENAI_API_KEY",
+  claude: "ALEMBIC_CLAUDE_API_KEY",
+  deepseek: "ALEMBIC_DEEPSEEK_API_KEY",
+};
+
+const AI_SETTING_FIELD_TO_ENV = {
+  provider: "ALEMBIC_AI_PROVIDER",
+  model: "ALEMBIC_AI_MODEL",
+  proxy: "ALEMBIC_AI_PROXY",
+  reasoningEffort: "ALEMBIC_AI_REASONING_EFFORT",
+  embedProvider: "ALEMBIC_EMBED_PROVIDER",
+  embedModel: "ALEMBIC_EMBED_MODEL",
+  embedBaseUrl: "ALEMBIC_EMBED_BASE_URL",
+};
+
+const AI_ENV_KEYS = [
+  "ALEMBIC_AI_PROVIDER",
+  "ALEMBIC_AI_MODEL",
+  "ALEMBIC_GOOGLE_API_KEY",
+  "ALEMBIC_OPENAI_API_KEY",
+  "ALEMBIC_CLAUDE_API_KEY",
+  "ALEMBIC_DEEPSEEK_API_KEY",
+  "ALEMBIC_AI_PROXY",
+  "ALEMBIC_AI_REASONING_EFFORT",
+  "ALEMBIC_EMBED_PROVIDER",
+  "ALEMBIC_EMBED_MODEL",
+  "ALEMBIC_EMBED_BASE_URL",
+  "ALEMBIC_EMBED_API_KEY",
+];
+
+const AI_SECRET_ENV_KEYS = new Set([
+  "ALEMBIC_GOOGLE_API_KEY",
+  "ALEMBIC_OPENAI_API_KEY",
+  "ALEMBIC_CLAUDE_API_KEY",
+  "ALEMBIC_DEEPSEEK_API_KEY",
+  "ALEMBIC_EMBED_API_KEY",
+]);
 
 function loadTestConfig() {
   const configPath = path.join(alembicTestRoot, "config", "defaults.json");
@@ -82,6 +126,10 @@ Options:
   --monitor                   After restart, run the read-only bootstrap monitor until Ctrl-C.
   --monitor-once              After restart, print one read-only bootstrap monitor snapshot.
   --monitor-interval <ms>     Polling interval for --monitor. Default: ${DEFAULT_MONITOR_INTERVAL_MS}
+  --ai-source-project <name|path>
+                              Fallback project whose Alembic Ghost AI config is used when
+                              the target project has no usable AI config. Default: ${DEFAULT_AI_SOURCE_PROJECT}
+  --no-ai-fallback            Do not inject fallback AI config from the default source project.
   --dry-run                   Print the command without executing it.
   --json                      Print a JSON summary.
   -h, --help                  Show this help.
@@ -97,6 +145,8 @@ Examples:
 function parseArgs(argv) {
   const options = {
     alembic: DEFAULT_ALEMBIC,
+    aiFallback: DEFAULT_AI_FALLBACK_ENABLED,
+    aiSourceProject: DEFAULT_AI_SOURCE_PROJECT,
     devLink: booleanConfig(TEST_CONFIG.restart?.devLink, true),
     dryRun: false,
     json: false,
@@ -161,9 +211,14 @@ function parseArgs(argv) {
       options.runtimeWriteCheck = false;
       continue;
     }
+    if (arg === "--no-ai-fallback") {
+      options.aiFallback = false;
+      continue;
+    }
     if (
       arg === "--project" ||
       arg === "--alembic" ||
+      arg === "--ai-source-project" ||
       arg === "--wait" ||
       arg === "--stop-wait" ||
       arg === "--status-timeout" ||
@@ -179,6 +234,8 @@ function parseArgs(argv) {
         options.project = value;
       } else if (arg === "--alembic") {
         options.alembic = value;
+      } else if (arg === "--ai-source-project") {
+        options.aiSourceProject = value;
       } else if (arg === "--wait") {
         options.waitMs = parsePositiveInteger(value, arg);
       } else if (arg === "--stop-wait") {
@@ -626,6 +683,13 @@ function printHuman(summary) {
   console.log(`Project:   ${summary.projectRoot}`);
   console.log(`Data root: ${summary.dataRoot ?? "unknown"}`);
   console.log(`Alembic:   ${summary.alembicRoot}`);
+  if (summary.aiConfig) {
+    const provider = summary.aiConfig.target?.settings?.ALEMBIC_AI_PROVIDER ||
+      summary.aiConfig.fallback?.settings?.ALEMBIC_AI_PROVIDER ||
+      "not configured";
+    const source = summary.aiConfig.source || "unknown";
+    console.log(`AI config: ${summary.aiConfig.ready ? "ready" : "missing"} (${source}, provider=${provider})`);
+  }
   if (summary.preclean?.skipped) {
     console.log("Preclean: skipped");
   } else if (summary.preclean) {
@@ -716,7 +780,262 @@ function cleanNpmPrefixEnv(env) {
   return next;
 }
 
-function runMonitor({ dashboardUrl, projectRoot, dataRoot, intervalMs, once }) {
+function buildRuntimeEnv(aiConfig) {
+  const base = cleanNpmPrefixEnv(process.env);
+  return { ...base, ...(aiConfig?.env || {}) };
+}
+
+function resolveAiRuntimeConfig({ fallbackEnabled, fallbackProject, projectRoot }) {
+  const processEnv = collectAiEnv(process.env);
+  if (isAiEnvReady(processEnv)) {
+    return {
+      env: {},
+      fallbackEnabled,
+      fallbackProject: fallbackProject || null,
+      ready: true,
+      reason: "explicit process env already provides a usable AI config",
+      source: "process-env",
+      target: describeAiStore(projectRoot),
+    };
+  }
+
+  const target = describeAiStore(projectRoot);
+  if (isAiEnvReady(target.env)) {
+    return {
+      env: target.env,
+      fallbackEnabled,
+      fallbackProject: fallbackProject || null,
+      ready: true,
+      reason: "target project Alembic workspace AI config is usable",
+      source: "target-project",
+      target,
+    };
+  }
+
+  if (!fallbackEnabled || !fallbackProject) {
+    return {
+      env: {},
+      fallbackEnabled,
+      fallbackProject: fallbackProject || null,
+      ready: false,
+      reason: "target project AI config is not ready and fallback is disabled",
+      source: "missing",
+      target,
+    };
+  }
+
+  const fallbackRoot = resolveProject(fallbackProject);
+  const fallback = describeAiStore(fallbackRoot);
+  if (pathsEqual(fallbackRoot, projectRoot)) {
+    return {
+      env: {},
+      fallback,
+      fallbackEnabled,
+      fallbackProject,
+      ready: false,
+      reason: "fallback project resolves to the same target and target AI config is not ready",
+      source: "missing",
+      target,
+    };
+  }
+  if (isAiEnvReady(fallback.env)) {
+    return {
+      env: fallback.env,
+      fallback,
+      fallbackEnabled,
+      fallbackProject,
+      ready: true,
+      reason: "target project has no usable AI config; injected fallback project AI config",
+      source: "fallback-project",
+      target,
+    };
+  }
+
+  return {
+    env: {},
+    fallback,
+    fallbackEnabled,
+    fallbackProject,
+    ready: false,
+    reason: "neither target project nor fallback project has usable AI config",
+    source: "missing",
+    target,
+  };
+}
+
+function describeAiStore(projectRoot) {
+  const inspection = inspectGhostProject(projectRoot);
+  const runtimeDir = path.join(inspection.dataRoot, ".asd");
+  const settingsPath = path.join(runtimeDir, "settings.json");
+  const secretsPath = path.join(runtimeDir, "secrets.json");
+  const env = readAiEnvFromStore(settingsPath, secretsPath);
+  return {
+    dataRoot: inspection.dataRoot,
+    dataRootSource: inspection.ghost ? "ghost-registry" : "project-root",
+    env,
+    ghost: inspection.ghost,
+    hasSettingsFile: existsSync(settingsPath),
+    hasSecretsFile: existsSync(secretsPath),
+    projectId: inspection.projectId,
+    projectRoot,
+    ready: isAiEnvReady(env),
+    runtimeDir,
+    settingsPath,
+    secretsPath,
+  };
+}
+
+function readAiEnvFromStore(settingsPath, secretsPath) {
+  const settings = readJson(settingsPath);
+  const secrets = readJson(secretsPath);
+  const env = {};
+  const aiSettings = settings.ai && typeof settings.ai === "object" ? settings.ai : {};
+  for (const [field, envKey] of Object.entries(AI_SETTING_FIELD_TO_ENV)) {
+    const value = aiSettings[field];
+    if (typeof value === "string" && value.length > 0) {
+      env[envKey] = value;
+    }
+  }
+
+  const providerKeys =
+    secrets.ai && typeof secrets.ai === "object" && secrets.ai.providerKeys
+      ? secrets.ai.providerKeys
+      : {};
+  for (const [provider, envKey] of Object.entries(PROVIDER_KEY_ENV)) {
+    const value = providerKeys[provider];
+    if (typeof value === "string" && value.length > 0) {
+      env[envKey] = value;
+    }
+  }
+
+  if (
+    secrets.ai &&
+    typeof secrets.ai === "object" &&
+    typeof secrets.ai.embedApiKey === "string" &&
+    secrets.ai.embedApiKey.length > 0
+  ) {
+    env.ALEMBIC_EMBED_API_KEY = secrets.ai.embedApiKey;
+  }
+
+  return env;
+}
+
+function inspectGhostProject(projectRoot) {
+  const realpath = normalizeProjectPath(projectRoot);
+  const registry = readJson(path.join(getAlembicGlobalRoot(), "projects.json"));
+  const entry = registry.projects && registry.projects[realpath] ? registry.projects[realpath] : null;
+  const projectId = entry?.id || generateProjectId(projectRoot);
+  const ghost = entry?.ghost === true;
+  return {
+    dataRoot: ghost ? path.join(getAlembicGlobalRoot(), "workspaces", projectId) : projectRoot,
+    ghost,
+    projectId: ghost ? projectId : null,
+    realpath,
+  };
+}
+
+function readJson(filePath) {
+  try {
+    if (!existsSync(filePath)) {
+      return {};
+    }
+    const parsed = JSON.parse(readFileSync(filePath, "utf8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function collectAiEnv(env) {
+  const result = {};
+  for (const key of AI_ENV_KEYS) {
+    const value = env[key];
+    if (typeof value === "string" && value.length > 0) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+function isAiEnvReady(env) {
+  const provider = env.ALEMBIC_AI_PROVIDER || "";
+  const neededKey = PROVIDER_KEY_ENV[provider] || "";
+  return Boolean(provider && (!neededKey || env[neededKey]));
+}
+
+function publicAiConfig(aiConfig) {
+  const toPublicStore = (store) =>
+    store
+      ? {
+          dataRootSource: store.dataRootSource,
+          ghost: store.ghost,
+          hasSecretsFile: store.hasSecretsFile,
+          hasSettingsFile: store.hasSettingsFile,
+          projectId: store.projectId,
+          projectRoot: store.projectRoot,
+          ready: store.ready,
+          settingsPath: store.settingsPath,
+          secretProviders: secretProviderFlags(store.env),
+          settings: publicAiSettings(store.env),
+        }
+      : null;
+
+  return {
+    fallbackEnabled: aiConfig.fallbackEnabled,
+    fallbackProject: aiConfig.fallbackProject || null,
+    fallback: toPublicStore(aiConfig.fallback),
+    ready: aiConfig.ready,
+    reason: aiConfig.reason,
+    source: aiConfig.source,
+    target: toPublicStore(aiConfig.target),
+  };
+}
+
+function publicAiSettings(env) {
+  const out = {};
+  for (const [key, value] of Object.entries(env || {})) {
+    if (AI_SECRET_ENV_KEYS.has(key)) {
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+function secretProviderFlags(env) {
+  const flags = {};
+  for (const [provider, envKey] of Object.entries(PROVIDER_KEY_ENV)) {
+    if (env?.[envKey]) {
+      flags[provider] = true;
+    }
+  }
+  if (env?.ALEMBIC_EMBED_API_KEY) {
+    flags.embed = true;
+  }
+  return flags;
+}
+
+function getAlembicGlobalRoot() {
+  return path.join(process.env.ALEMBIC_HOME || os.homedir(), ".asd");
+}
+
+function normalizeProjectPath(projectRoot) {
+  try {
+    return realpathSync(projectRoot);
+  } catch {
+    return path.resolve(projectRoot);
+  }
+}
+
+function generateProjectId(projectRoot) {
+  return createHash("sha256").update(normalizeProjectPath(projectRoot)).digest("hex").slice(0, 8);
+}
+
+function pathsEqual(a, b) {
+  return path.resolve(a) === path.resolve(b);
+}
+
+function runMonitor({ dashboardUrl, projectRoot, dataRoot, env, intervalMs, once }) {
   const monitorPath = path.join(alembicTestScriptsRoot, "monitor-alembic-bootstrap.mjs");
   if (!existsSync(monitorPath)) {
     throw new Error(`Monitor script not found: ${monitorPath}`);
@@ -738,7 +1057,7 @@ function runMonitor({ dashboardUrl, projectRoot, dataRoot, intervalMs, once }) {
   const child = spawnSync(process.execPath, args, {
     cwd: workspaceRoot,
     encoding: "utf8",
-    env: cleanNpmPrefixEnv(process.env),
+    env: env || cleanNpmPrefixEnv(process.env),
     stdio: "inherit",
   });
   if (child.status !== 0) {
@@ -757,6 +1076,12 @@ async function main() {
   const projectRoot = resolveProject(options.project);
   assertDirectory(alembicRoot, "Alembic repository");
   assertDirectory(projectRoot, "Project");
+  const aiConfig = resolveAiRuntimeConfig({
+    fallbackEnabled: options.aiFallback,
+    fallbackProject: options.aiSourceProject,
+    projectRoot,
+  });
+  const runtimeEnv = buildRuntimeEnv(aiConfig);
 
   const cliPath = path.join(alembicRoot, "dist/bin/cli.js");
 
@@ -776,6 +1101,7 @@ async function main() {
 
   if (options.dryRun) {
     const dryRunSummary = {
+      aiConfig: publicAiConfig(aiConfig),
       alembicRoot,
       devLink: options.devLink ? runDevLink({ alembicRoot, dryRun: true }) : { skipped: true },
       preclean: options.preclean
@@ -840,6 +1166,7 @@ async function main() {
   if (!preclean.skipped && preclean.ok === false) {
     const summary = {
       ok: false,
+      aiConfig: publicAiConfig(aiConfig),
       alembicRoot,
       devLink: { skipped: true },
       durationMs: 0,
@@ -867,6 +1194,7 @@ async function main() {
   if (!devLink.ok) {
     const summary = {
       ok: false,
+      aiConfig: publicAiConfig(aiConfig),
       alembicRoot,
       devLink,
       durationMs: devLink.durationMs ?? 0,
@@ -895,7 +1223,7 @@ async function main() {
   const child = spawnSync(process.execPath, commandArgs, {
     cwd: alembicRoot,
     encoding: "utf8",
-    env: cleanNpmPrefixEnv(process.env),
+    env: runtimeEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -905,6 +1233,7 @@ async function main() {
   const ready = Boolean(cliResult?.ok ?? cliResult?.ready ?? child.status === 0);
   const summary = {
     ok: child.status === 0 && ready,
+    aiConfig: publicAiConfig(aiConfig),
     alembicRoot,
     apiBaseUrl,
     dataRoot:
@@ -950,6 +1279,7 @@ async function main() {
       dashboardUrl: summary.dashboardUrl,
       projectRoot: summary.projectRoot,
       dataRoot: summary.dataRoot,
+      env: runtimeEnv,
       intervalMs: options.monitorIntervalMs,
       once: options.monitorOnce && !options.monitor,
     });

@@ -129,7 +129,11 @@ Current scripts:
   only when intentionally testing an already-linked build. Because Alembic must write
   `~/.asd/runtime-control.json` to register the active runtime, the script
   preflights that write and should be run with elevated sandbox permissions
-  inside Codex.
+  inside Codex. Before launching Alembic, it resolves the target project's
+  Ghost/standard AI config; if that target has no usable provider/key pair, it
+  can inject the configured default source project's AI config into the child
+  process. The JSON/human summary only reports source, provider/model, and
+  boolean key presence, never secret values.
 - `monitor-alembic-bootstrap.mjs`: read-only bootstrap monitor for cold-start
   runs. It never starts, stops, cancels, or kills Alembic; it resolves the
   current daemon URL/data root, polls the compact jobs API
@@ -146,8 +150,9 @@ Current scripts:
 Shared defaults live in `AlembicTest/config/defaults.json`. The config lists
 both supported real-project targets: `AlembicWorkspace` for Alembic self-hosting
 / multi-root checks and `BiliDili` for the iOS/Swift business project checks.
-Override the target with CLI flags for one-off verification instead of editing
-the script body.
+It also records the default AI config source project used when a selected target
+has no usable AI config. Override the target or fallback source with CLI flags
+for one-off verification instead of editing the script body.
 
 Audit ignored raw evidence without deleting it:
 
@@ -166,6 +171,7 @@ Restart local Alembic for an explicit target:
 ```bash
 node AlembicTest/scripts/restart-alembic.mjs --project AlembicWorkspace
 node AlembicTest/scripts/restart-alembic.mjs --project BiliDili
+node AlembicTest/scripts/restart-alembic.mjs --project ../SomeFixture --ai-source-project BiliDili
 ```
 
 Restart local Alembic and monitor cold-start progress:
