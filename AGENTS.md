@@ -96,7 +96,7 @@
 - 先读取当前总控文档、目标仓库 `AGENTS.md`、相关脚本说明和真实入口，再执行测试。
 - 只改本目录说明或测试文档时，通常不需要跑产品构建，但必须说明未运行构建的原因。
 - 验证 Alembic 主仓库 CLI / daemon / Dashboard 时，优先使用 `Alembic` 仓库已有脚本和当前总控文档指定命令，不要临时发明另一套启动路径。
-- 测试中只要启动或使用 Dashboard、本地 Web UI、localhost 前端页面，就必须同时在 Codex 右侧 in-app browser 打开对应页面，优先打开当前测试最相关的目标 URL（如 Jobs/Candidates/具体 job 页面），方便用户实时查看；不要只在报告或终端里写 URL。
+- 测试中只要启动或使用 Dashboard、本地 Web UI、localhost 前端页面，就必须同时在 Codex 右侧 in-app browser 打开对应页面，优先打开当前测试最相关的目标 URL（如 Jobs/Candidates/具体 job 页面），方便用户实时查看；需要使用浏览器测试前端页面时，尽量使用 Codex 内置浏览器 / Browser 插件完成打开、交互、DOM 检查和截图。只有用户明确要求 Chrome / 系统浏览器、需要用户登录态 / 扩展，或 Codex 内置浏览器无法完成时，才改用其它浏览器，并在报告里写清原因；不要只在报告或终端里写 URL。
 - 验证 AlembicAgent 行为时，必须关注真实 LLM/tool 调用闭环、日志、取消、timeout、retry、fallback、QualityGate 和 memory / note_finding 证据。
 - 验证 Dashboard 时，必须关注用户可见状态、轮询 API、任务状态分类、取消/失败/完成归类、按钮行为和错误展示。
 - 验证 AlembicWorkspace 时，把它当 Alembic 自身真实 multi-root / self-hosting 测试项目保护；默认只按总控测试单做 ProjectScope、Plugin、Dashboard、daemon/API、source folder no-write 等最小复测，不提交 workspace 仓库，不把 workspace 根目录加入 source `folders[]`，不把总控文档治理和产品源码修复混在同一测试动作里。
@@ -114,6 +114,19 @@
 - 如果 cold-start / after-run 会使用外部 AI provider 并发送真实项目上下文，正确顺序不是由 Codex 直接触发真实 probe：AlembicTest 只负责启动 / 确认 Alembic 服务、打开 Dashboard、开始被动监控；由用户在 Dashboard 手动点击 cold-start / rescan；随后 AlembicTest 记录本机 daemon/API/log/report 证据。此时必须说明结论来自用户手动 UI 触发，不等价于 Codex probe 的小样本参数。
 - PCVM / cold-start 监控优先使用短间隔直接 `curl` 快照读取本机 daemon API、日志和 report；不要默认用 Node `fetch`、Node 子进程调用本地 `curl` 或复杂 shell 长轮询包装本地 API，因为沙箱可能让这些嵌套网络 / 子进程路径失败。直接 `curl` URL 必须给带 `?` 的地址加引号，涉及 shell 变量时必须确认变量已 export 或直接写明文件名，避免 zsh glob / 未导出变量造成假失败。
 - 如果监控脚本或长轮询启动失败，不要留下错误进程继续刷日志；停止前必须先用 `ps -p <pid> -o pid,command` 或 `ps -axo pid,command | rg <唯一任务标识>` 确认 PID 确实属于本轮失败监控，再按权限规则停止。不得因为监控脚本失败而停止 Alembic daemon 或用户手动触发的真实 job。
+
+## 历史高频碰壁归因
+
+- 本机 daemon / API / pid 探活失败时，先区分 Codex 沙箱、本地网络权限、Node `fetch`、子进程和实际 daemon 状态；不能把 `EPERM`、`fetch failed` 或沙箱内 pid 误判直接写成产品不可用。
+- 复测 Dashboard / Jobs / Candidates 前，必须确认当前 daemon 加载的是本轮 Dashboard build / dev-link 资产。旧 daemon 或旧 bundle 可能复现已修复问题（例如 React #31），此类应归为 stale runtime / stale asset 风险。
+- live socket append 结论要分层：最终 retained events / REST recovery 正确，不等于严格逐条近实时显示；如果事件批量落屏，应写成实时性 / cadence 观察，不要误判为 rich content renderer 失败。
+- Dashboard 没显示内容时，先查 producer 是否真实产出 `llm.input` / `llm.output` / `llm.reflection` / `tool` 事件。producer 未产出是 instrumentation gap，不是前端展示 gap。
+- runtime events、job carry、artifact API、report projection、persisted report 和 Dashboard display 是不同层。某层有 canonical identity / sourceRefs / scorecard 字段，不代表下游 report 或 UI 已消费；结论必须写清字段停在哪一层。
+- ProjectScope / Plugin 验证要区分 `status` / `diagnostics` identity、`tools/list` 可见性和 `health` / `prime` / `search` 真实执行。身份识别通过不等于 Codex-facing tool execution preflight 已走通。
+- Probe 顶层 classifier 可能滞后于产品修复；如果 classifier 与原始 tool result / JSON evidence 冲突，以原始字段为准，并把 classifier 过时写成测试脚本风险。
+- `dev:link` / 本地 build 可能把目标仓库 dirty tree 打进验证对象。报告必须列出 commit 与 dirty files，并说明本轮验证对象是纯 commit 还是 commit + 未提交变更。
+- 真实测试项目 git tree clean 不代表没有测试副作用；Ghost data root 里产生 candidates、reports、skills、memory 属于运行时数据副作用，必须与业务源码变更分开说明。
+- AlembicTest 提交前必须先看 `git status -sb` 和 ahead / behind。不要 amend 可能已经被远端接收的提交；若出现分叉，先停止并等待用户确认 reset / rebase / merge 策略。
 
 ## 文件地图
 
