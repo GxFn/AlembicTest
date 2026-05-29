@@ -71,7 +71,8 @@
 - 如果当前总控文档明确要求把证据回填到某个 wave 文档，应按该文档指定位置回填，并同时在 `../workspace-ledger/AlembicTest/` 保存必要的长期验证材料。
 - 本目录内只保留测试窗口自身的 `AGENTS.md`、临时可复用脚本、测试 fixtures、说明文件或总控明确授权的辅助资产；不要把跨仓库协作长期文档直接堆在本目录。
 - 测试默认目标、等待时间、监控轮询、日志信号匹配等测试配置统一写到 `config/`；不要把这些配置散落到总控 `AGENTS.md` 或 workspace 根 `scripts/`。
-- AI 测试配置优先读取当前目标项目在 Alembic Ghost / standard runtime 中的 `settings.json` / `secrets.json`；目标项目没有可用 AI 配置时，允许按 `config/defaults.json` 的 `ai.defaultSourceProject` 使用默认测试 AI 配置。只能报告配置来源、provider/model 和 key 是否存在，不能打印、复制或提交 secret 值。
+- AI 测试配置优先读取当前目标项目在 Alembic Ghost / standard runtime 中的 `settings.json` / `secrets.json`；目标项目没有可用 AI 配置时，允许按 `config/defaults.json` 的 `ai.defaultSourceProject` 获取基础测试 AI 配置。只能报告配置来源、provider/model 和 key 是否存在，不能打印、复制或提交 secret 值。
+- 缺 AI 配置时不得临时编造 provider/model、复制其它项目 secret、把默认测试 AI 配置写回目标项目，或把“发现了可用配置”当成“已允许发送真实项目上下文”。如果目标项目和默认来源都没有可用配置，应停止并回填 `ai-config-unavailable`；如果后续会外发真实项目上下文，仍必须按外部 provider 手动触发规则取得用户确认。
 - 测试执行归属、配置归属和回填要求以 `docs/testing-operation-policy.md` 为准。
 - 长期文档不得写入用户本机绝对路径、API key、Cookie、token、登录态、设备 UDID 或其它私密信息。需要记录路径时，优先使用 workspace 相对路径或说明性占位。
 
@@ -118,6 +119,7 @@
 ## 历史高频碰壁归因
 
 - 本机 daemon / API / pid 探活失败时，先区分 Codex 沙箱、本地网络权限、Node `fetch`、子进程和实际 daemon 状态；不能把 `EPERM`、`fetch failed` 或沙箱内 pid 误判直接写成产品不可用。
+- 目标项目缺 AI 配置时，先走 `config/defaults.json` 的 `ai.defaultSourceProject` 基础配置读取路径；配置发现、secret presence 和外部 provider 数据发送授权是三件事，不能混成同一个通过条件。
 - 复测 Dashboard / Jobs / Candidates 前，必须确认当前 daemon 加载的是本轮 Dashboard build / dev-link 资产。旧 daemon 或旧 bundle 可能复现已修复问题（例如 React #31），此类应归为 stale runtime / stale asset 风险。
 - live socket append 结论要分层：最终 retained events / REST recovery 正确，不等于严格逐条近实时显示；如果事件批量落屏，应写成实时性 / cadence 观察，不要误判为 rich content renderer 失败。
 - Dashboard 没显示内容时，先查 producer 是否真实产出 `llm.input` / `llm.output` / `llm.reflection` / `tool` 事件。producer 未产出是 instrumentation gap，不是前端展示 gap。
