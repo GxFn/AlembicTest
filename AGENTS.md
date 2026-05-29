@@ -111,6 +111,9 @@
 - 测试结论必须区分两类证据：sourceRef / `src` 代码事实证据，和 runtime artifact / `dist` proof 运行产物证据。不能用 `src` 命中代替 runtime 产物命中，也不能用 report/API 结果反推 source 已生效。
 - 如果 `src` 有证据但 `dist` 未刷新、`dist` 无命中或 runtime linkage 仍指向旧产物，不得判定产品功能失败；应回填为测试环境 / runtime linkage 阻塞或 stale dist 风险，并写清下一步需要刷新产物后重跑。
 - 如果 fresh dist proof 成立后 runtime / report 仍失败，再按证据分层判断归属：`AlembicAgent` 传递链、Alembic runtime consumer、report projection / persistence，或真实产品缺陷。归因前必须列出上游已产出什么、下游实际消费了什么、缺失字段停在哪一层。
+- 如果 cold-start / after-run 会使用外部 AI provider 并发送真实项目上下文，正确顺序不是由 Codex 直接触发真实 probe：AlembicTest 只负责启动 / 确认 Alembic 服务、打开 Dashboard、开始被动监控；由用户在 Dashboard 手动点击 cold-start / rescan；随后 AlembicTest 记录本机 daemon/API/log/report 证据。此时必须说明结论来自用户手动 UI 触发，不等价于 Codex probe 的小样本参数。
+- PCVM / cold-start 监控优先使用短间隔直接 `curl` 快照读取本机 daemon API、日志和 report；不要默认用 Node `fetch`、Node 子进程调用本地 `curl` 或复杂 shell 长轮询包装本地 API，因为沙箱可能让这些嵌套网络 / 子进程路径失败。直接 `curl` URL 必须给带 `?` 的地址加引号，涉及 shell 变量时必须确认变量已 export 或直接写明文件名，避免 zsh glob / 未导出变量造成假失败。
+- 如果监控脚本或长轮询启动失败，不要留下错误进程继续刷日志；停止前必须先用 `ps -p <pid> -o pid,command` 或 `ps -axo pid,command | rg <唯一任务标识>` 确认 PID 确实属于本轮失败监控，再按权限规则停止。不得因为监控脚本失败而停止 Alembic daemon 或用户手动触发的真实 job。
 
 ## 文件地图
 
