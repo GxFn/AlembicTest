@@ -103,6 +103,15 @@
 - 验证 BiliDili 时，把它当真实 iOS/Swift 项目保护；默认只做只读扫描、冷启动验证或总控明确要求的最小回归，不要改业务代码。
 - 如果命令无法运行，记录原因、环境限制和下一步建议，不能把未运行命令写成通过。
 
+## PCVM / cold-start runtime 验证门禁
+
+- 保持当前产品设计：Alembic runtime 通过 package exports 消费 `@alembic/agent` 的构建产物；AlembicTest 不要求 `Alembic` / `AlembicAgent` 改 exports 到 `src/*`，也不得把这种改动当作测试前置条件。
+- 当测试涉及 Alembic runtime、cold-start、rescan、after-run，且 runtime 会通过 `@alembic/agent` 消费 `AlembicAgent` 时，必须先确认 fresh Agent dist。默认命令是 `npm --prefix ../AlembicAgent run build`；如果总控明确指定 dev-link 或等效构建命令，则按总控命令执行并记录。
+- Fresh dist proof 必须至少包含：`AlembicAgent` commit、构建 / dev-link 命令、`@alembic/agent` runtime linkage（例如 package realpath、main/exports 指向）以及本轮关键 dist 文件命中证据。命中证据应指向相关 `dist/` 文件中是否包含本轮要验证的字段、node id、metadata、runtime carry 或 projection 字段。
+- 测试结论必须区分两类证据：sourceRef / `src` 代码事实证据，和 runtime artifact / `dist` proof 运行产物证据。不能用 `src` 命中代替 runtime 产物命中，也不能用 report/API 结果反推 source 已生效。
+- 如果 `src` 有证据但 `dist` 未刷新、`dist` 无命中或 runtime linkage 仍指向旧产物，不得判定产品功能失败；应回填为测试环境 / runtime linkage 阻塞或 stale dist 风险，并写清下一步需要刷新产物后重跑。
+- 如果 fresh dist proof 成立后 runtime / report 仍失败，再按证据分层判断归属：`AlembicAgent` 传递链、Alembic runtime consumer、report projection / persistence，或真实产品缺陷。归因前必须列出上游已产出什么、下游实际消费了什么、缺失字段停在哪一层。
+
 ## 文件地图
 
 - 本窗口规则：`AGENTS.md`。
