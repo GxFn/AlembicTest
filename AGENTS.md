@@ -62,7 +62,7 @@
 3. 再判断问题归属到哪个源仓库；本窗口只写复现、证据和建议。
 4. 最后按总控要求回填完成范围、验证结果、遗留风险和下一步建议。
 
-当前可作为 AlembicTest 真实验证目标的项目包括 `AlembicWorkspace` 和 `BiliDili`。两者都不是临时 demo：`AlembicWorkspace` 用于 Alembic 自身 multi-root / self-hosting 集成验证，`BiliDili` 用于真实 iOS/Swift 业务项目验证。每次测试必须以用户口头要求或当前总控测试单为准选择目标；不得默认把 BiliDili 当成唯一测试项目。
+当前可作为 AlembicTest 真实验证目标的项目包括 `AlembicWorkspace` 和 `BiliDili`。两者都不是临时 demo：`AlembicWorkspace` 用于 Alembic 自身 multi-root / self-hosting 集成验证，`BiliDili` 用于真实 iOS/Swift 业务项目验证。`BiliDili` 作为开源测试项目时，源码内容不作为外部 AI provider 自动化测试的保密门禁；但自动触发外部 provider 仍必须满足结构化授权规则。仍必须保护 API key、Cookie、token、登录态、设备信息、本机路径细节和运行时 secret。每次测试必须以用户口头要求或当前总控测试单为准选择目标；不得默认把 BiliDili 当成唯一测试项目。
 
 ## 文档与证据存储
 
@@ -72,7 +72,7 @@
 - 本目录内只保留测试窗口自身的 `AGENTS.md`、临时可复用脚本、测试 fixtures、说明文件或总控明确授权的辅助资产；不要把跨仓库协作长期文档直接堆在本目录。
 - 测试默认目标、等待时间、监控轮询、日志信号匹配等测试配置统一写到 `config/`；不要把这些配置散落到总控 `AGENTS.md` 或 workspace 根 `scripts/`。
 - AI 测试配置优先读取当前目标项目在 Alembic Ghost / standard runtime 中的 `settings.json` / `secrets.json`；目标项目没有可用 AI 配置时，允许按 `config/defaults.json` 的 `ai.defaultSourceProject` 获取基础测试 AI 配置。只能报告配置来源、provider/model 和 key 是否存在，不能打印、复制或提交 secret 值。
-- 缺 AI 配置时不得临时编造 provider/model、复制其它项目 secret、把默认测试 AI 配置写回目标项目，或把“发现了可用配置”当成“已允许发送真实项目上下文”。如果目标项目和默认来源都没有可用配置，应停止并回填 `ai-config-unavailable`；如果后续会外发真实项目上下文，仍必须按外部 provider 手动触发规则取得用户确认。
+- 缺 AI 配置时不得临时编造 provider/model、复制其它项目 secret、把默认测试 AI 配置写回目标项目，或把“发现了可用配置”当成“已允许发送真实项目上下文”。如果目标项目和默认来源都没有可用配置，应停止并回填 `ai-config-unavailable`；如果后续会外发真实项目上下文，除 `BiliDili` 开源测试项目且满足 `externalAiAutoRunApproved=true` 结构化授权外，仍必须按外部 provider 手动触发规则取得用户确认。
 - 测试执行归属、配置归属和回填要求以 `docs/testing-operation-policy.md` 为准。
 - 长期文档不得写入用户本机绝对路径、API key、Cookie、token、登录态、设备 UDID 或其它私密信息。需要记录路径时，优先使用 workspace 相对路径或说明性占位。
 
@@ -101,7 +101,7 @@
 - 验证 AlembicAgent 行为时，必须关注真实 LLM/tool 调用闭环、日志、取消、timeout、retry、fallback、QualityGate 和 memory / note_finding 证据。
 - 验证 Dashboard 时，必须关注用户可见状态、轮询 API、任务状态分类、取消/失败/完成归类、按钮行为和错误展示。
 - 验证 AlembicWorkspace 时，把它当 Alembic 自身真实 multi-root / self-hosting 测试项目保护；默认只按总控测试单做 ProjectScope、Plugin、Dashboard、daemon/API、source folder no-write 等最小复测，不提交 workspace 仓库，不把 workspace 根目录加入 source `folders[]`，不把总控文档治理和产品源码修复混在同一测试动作里。
-- 验证 BiliDili 时，把它当真实 iOS/Swift 项目保护；默认只做只读扫描、冷启动验证或总控明确要求的最小回归，不要改业务代码。
+- 验证 BiliDili 时，把它当真实 iOS/Swift 开源测试项目处理；源码内容允许用于 Alembic 外部 AI provider cold-start / rescan / after-run 测试，不再要求用户手动点击 Dashboard 只为确认源码保密边界。但自动触发仍必须有 `externalAiAutoRunApproved=true` 或同等明确结构化授权。仍默认只做只读扫描、冷启动验证或总控明确要求的最小回归，不要改业务代码，不要打印 secret / token / Cookie / 登录态。
 - 如果命令无法运行，记录原因、环境限制和下一步建议，不能把未运行命令写成通过。
 
 ## PCVM / cold-start runtime 验证门禁
@@ -112,7 +112,10 @@
 - 测试结论必须区分两类证据：sourceRef / `src` 代码事实证据，和 runtime artifact / `dist` proof 运行产物证据。不能用 `src` 命中代替 runtime 产物命中，也不能用 report/API 结果反推 source 已生效。
 - 如果 `src` 有证据但 `dist` 未刷新、`dist` 无命中或 runtime linkage 仍指向旧产物，不得判定产品功能失败；应回填为测试环境 / runtime linkage 阻塞或 stale dist 风险，并写清下一步需要刷新产物后重跑。
 - 如果 fresh dist proof 成立后 runtime / report 仍失败，再按证据分层判断归属：`AlembicAgent` 传递链、Alembic runtime consumer、report projection / persistence，或真实产品缺陷。归因前必须列出上游已产出什么、下游实际消费了什么、缺失字段停在哪一层。
-- 如果 cold-start / after-run 会使用外部 AI provider 并发送真实项目上下文，正确顺序不是由 Codex 直接触发真实 probe：AlembicTest 只负责启动 / 确认 Alembic 服务、打开 Dashboard、开始被动监控；由用户在 Dashboard 手动点击 cold-start / rescan；随后 AlembicTest 记录本机 daemon/API/log/report 证据。此时必须说明结论来自用户手动 UI 触发，不等价于 Codex probe 的小样本参数。
+- 如果 cold-start / after-run 会使用外部 AI provider 并发送真实项目上下文，默认正确顺序不是由 Codex 直接触发真实 probe：AlembicTest 只负责启动 / 确认 Alembic 服务、打开 Dashboard、开始被动监控；由用户在 Dashboard 手动点击 cold-start / rescan；随后 AlembicTest 记录本机 daemon/API/log/report 证据。此时必须说明结论来自用户手动 UI 触发，不等价于 Codex probe 的小样本参数。
+- `BiliDili` 例外：用户已明确将 `BiliDili` 定义为开源测试项目，源码内容不再构成手动点击门禁；但 AlembicTest 自动触发外部 provider 必须同时满足：当前用户消息、总控测试单或当前计划写明 `externalAiAutoRunApproved=true`，并写清 `project=BiliDili`、`provider/model`、`maxFiles/contentMaxLines/dimensions`、测试 `scope`、有效期或 `taskId`。字段不齐时只能 passive monitor，等待用户手动 Dashboard 触发。
+- 满足 `BiliDili` 自动授权后，AlembicTest 可以通过 Alembic daemon/API/脚本自动触发 cold-start / rescan / after-run，无需等待用户手动点击 Dashboard。报告必须写清使用了 `BiliDili` 开源测试项目 + `externalAiAutoRunApproved=true` 授权，并记录 provider/model、配置来源、触发入口、request 参数、job/session id、证据路径、git 状态和不能推出的结论。
+- `BiliDili` 例外只解除源码保密与人工点击阻塞，不解除其它门禁：不得发送或打印 secret，不得修改业务源码，不得扩大到其它真实项目，不得绕过测试单范围，不得把 provider 安全策略或错误响应写成“已避开审查”。`AlembicWorkspace` 和其它非开源 / 未明确授权目标仍按用户手动触发或测试单逐项显式授权执行。
 - PCVM / cold-start 监控优先使用短间隔直接 `curl` 快照读取本机 daemon API、日志和 report；不要默认用 Node `fetch`、Node 子进程调用本地 `curl` 或复杂 shell 长轮询包装本地 API，因为沙箱可能让这些嵌套网络 / 子进程路径失败。直接 `curl` URL 必须给带 `?` 的地址加引号，涉及 shell 变量时必须确认变量已 export 或直接写明文件名，避免 zsh glob / 未导出变量造成假失败。
 - 如果监控脚本或长轮询启动失败，不要留下错误进程继续刷日志；停止前必须先用 `ps -p <pid> -o pid,command` 或 `ps -axo pid,command | rg <唯一任务标识>` 确认 PID 确实属于本轮失败监控，再按权限规则停止。不得因为监控脚本失败而停止 Alembic daemon 或用户手动触发的真实 job。
 
