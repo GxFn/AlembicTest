@@ -134,6 +134,13 @@ Current scripts:
   can inject the configured default source project's AI config into the child
   process. The JSON/human summary only reports source, provider/model, and
   boolean key presence, never secret values.
+- `verify-test-environment.mjs`: read-only readiness check for an already
+  started Alembic test daemon. It resolves the current daemon URL/data root,
+  checks `/api/v1/health`, `/api/v1/modules/test-mode`, and the compact
+  bootstrap jobs API, summarizes the latest job, and classifies Codex localhost
+  sandbox failures separately from real daemon unavailability. Use it before
+  starting a probe or after `restart-alembic.mjs` when the task only needs a
+  stable test environment rather than a cold-start chain.
 - `monitor-alembic-bootstrap.mjs`: read-only bootstrap monitor for cold-start
   runs. It never starts, stops, cancels, or kills Alembic; it resolves the
   current daemon URL/data root, polls the compact jobs API
@@ -178,6 +185,13 @@ Restart local Alembic and monitor cold-start progress:
 
 ```bash
 node AlembicTest/scripts/restart-alembic.mjs --monitor
+```
+
+Verify the current test daemon environment without starting a job:
+
+```bash
+node AlembicTest/scripts/verify-test-environment.mjs --json
+node AlembicTest/scripts/verify-test-environment.mjs --url http://127.0.0.1:60870 --json
 ```
 
 Monitor an already-running Alembic cold start:

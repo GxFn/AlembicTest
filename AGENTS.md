@@ -62,7 +62,31 @@
 3. 再判断问题归属到哪个源仓库；本窗口只写复现、证据和建议。
 4. 最后按总控要求回填完成范围、验证结果、遗留风险和下一步建议。
 
-当前可作为 AlembicTest 真实验证目标的项目包括 `AlembicWorkspace` 和 `BiliDili`。两者都不是临时 demo：`AlembicWorkspace` 用于 Alembic 自身 multi-root / self-hosting 集成验证，`BiliDili` 用于真实 iOS/Swift 业务项目验证。`BiliDili` 作为开源测试项目时，源码内容不作为外部 AI provider 自动化测试的保密门禁；但自动触发外部 provider 仍必须满足结构化授权规则。仍必须保护 API key、Cookie、token、登录态、设备信息、本机路径细节和运行时 secret。每次测试必须以用户口头要求或当前总控测试单为准选择目标；不得默认把 BiliDili 当成唯一测试项目。
+当前可作为 AlembicTest 真实验证目标的项目包括 `AlembicWorkspace` 和 `BiliDili`。两者都不是临时 demo：`AlembicWorkspace` 用于 Alembic 自身 multi-root / self-hosting 集成验证，`BiliDili` 用于真实 iOS/Swift 业务项目验证。`BiliDili` 作为开源测试项目时，源码内容不作为外部 AI provider 自动化测试的保密门禁；当当前用户请求、总控测试单或 automation dispatch 明确分配 AlembicTest 使用 BiliDili 做 cold-start / rescan / after-run 真实验证时，应主动执行最小必要自动化测试，不得因缺少某个本窗口自造字段而直接阻塞。仍必须保护 API key、Cookie、token、登录态、设备信息、本机路径细节和运行时 secret。每次测试必须以用户口头要求或当前总控测试单为准选择目标；不得默认把 BiliDili 当成唯一测试项目。
+
+## 真实测试执行流程
+
+本节只放必须长期记住的路线门禁。命令模板、证据清单、故障分叉和历史验证细节放到 `skills/alembic-test-real-routes/SKILL.md`；可机械判断的环境检查交给 `scripts/verify-test-environment.mjs`、`scripts/restart-alembic.mjs` 和具体 probe 脚本执行。
+
+### 路径确认优先
+
+- 如果启动路径、Dashboard URL、test mode、probe 参数、preclean 语义或 API 连接状态不确定，先用脚本 / API / 日志确认真实可用路径，再回填结论或更新规则。
+- 环境可用性默认先跑 `node AlembicTest/scripts/verify-test-environment.mjs --project <target> --json`；若脚本报 `codex-localhost-sandbox-blocked`，按权限规则重跑或用直接 `curl` 快照验证，不得把它误判为 daemon 故障。
+- 只有被本机命令、API、Dashboard、日志、报告、脚本 `--help` 或历史成功报告验证过的路线，才能写成默认流程；候选路线只能写成待验证。
+
+### 执行前自检
+
+1. 先声明当前窗口定位：`AlembicTest` 只负责真实测试验证，不做产品实现，不替总代控验收。
+2. 确认目标项目是 `BiliDili`、`AlembicWorkspace` 还是其它受保护项目；确认测试唯一问题、成功结论、失败结论和不能推出的结论。
+3. 确认是否需要真实 AI / 外部 provider、Dashboard、用户手动点击、test mode 小样本或 fresh dist proof。
+4. 在回填 `blocked`、`needs-review` 或返回总控前，先确认是否仍可通过启动 Alembic、打开 Dashboard、开启被动监控、切换到 BiliDili 开源测试项目、启用 test mode 小样本或记录更小有效证据推进；这些路径都不可行时才允许阻塞。
+
+### 目标分流
+
+- `BiliDili` 是用户明确指定的开源真实测试项目。当前用户请求、总控测试单或 automation dispatch 明确要求 AlembicTest 使用 BiliDili 做 cold-start / rescan / after-run 真实验证时，默认主动执行最小必要 test-mode 自动路线，不等待用户手动点击，也不要要求 `externalAiAutoRunApproved=true` 这类本窗口自造字段。
+- `AlembicWorkspace` 或其它未明确作为开源测试项目的真实项目，如果 cold-start / rescan / after-run 会把项目上下文发送给外部 provider，默认走手动触发路线：AlembicTest 启动 / 确认服务、打开右侧 Dashboard、开始被动监控，由用户点击按钮后再记录本机证据。
+- 当用户只要求“保证测试环境启动正常和稳定”时，不触发 cold-start / rescan / after-run；只启动或验证 daemon、test mode、Dashboard URL、data root、pid、health 和 compact jobs API。
+- 启动或使用 Dashboard / 本地前端时，必须在 Codex 右侧 in-app browser 打开最相关页面；如果 Browser 插件不可用且 UI 证据是本轮必需项，先暂停并给出 URL。
 
 ## 文档与证据存储
 
@@ -72,7 +96,7 @@
 - 本目录内只保留测试窗口自身的 `AGENTS.md`、临时可复用脚本、测试 fixtures、说明文件或总控明确授权的辅助资产；不要把跨仓库协作长期文档直接堆在本目录。
 - 测试默认目标、等待时间、监控轮询、日志信号匹配等测试配置统一写到 `config/`；不要把这些配置散落到总控 `AGENTS.md` 或 workspace 根 `scripts/`。
 - AI 测试配置优先读取当前目标项目在 Alembic Ghost / standard runtime 中的 `settings.json` / `secrets.json`；目标项目没有可用 AI 配置时，允许按 `config/defaults.json` 的 `ai.defaultSourceProject` 获取基础测试 AI 配置。只能报告配置来源、provider/model 和 key 是否存在，不能打印、复制或提交 secret 值。
-- 缺 AI 配置时不得临时编造 provider/model、复制其它项目 secret、把默认测试 AI 配置写回目标项目，或把“发现了可用配置”当成“已允许发送真实项目上下文”。如果目标项目和默认来源都没有可用配置，应停止并回填 `ai-config-unavailable`；如果后续会外发真实项目上下文，除 `BiliDili` 开源测试项目且满足 `externalAiAutoRunApproved=true` 结构化授权外，仍必须按外部 provider 手动触发规则取得用户确认。
+- 缺 AI 配置时不得临时编造 provider/model、复制其它项目 secret、把默认测试 AI 配置写回目标项目，或把“发现了可用配置”当成“已允许发送真实项目上下文”。如果目标项目和默认来源都没有可用配置，应停止并回填 `ai-config-unavailable`；如果后续会外发真实项目上下文，`BiliDili` 按开源测试项目规则执行，其它需要保护的真实项目仍必须按外部 provider 手动触发规则取得用户确认。
 - 测试执行归属、配置归属和回填要求以 `docs/testing-operation-policy.md` 为准。
 - 长期文档不得写入用户本机绝对路径、API key、Cookie、token、登录态、设备 UDID 或其它私密信息。需要记录路径时，优先使用 workspace 相对路径或说明性占位。
 
@@ -101,43 +125,32 @@
 - 验证 AlembicAgent 行为时，必须关注真实 LLM/tool 调用闭环、日志、取消、timeout、retry、fallback、QualityGate 和 memory / note_finding 证据。
 - 验证 Dashboard 时，必须关注用户可见状态、轮询 API、任务状态分类、取消/失败/完成归类、按钮行为和错误展示。
 - 验证 AlembicWorkspace 时，把它当 Alembic 自身真实 multi-root / self-hosting 测试项目保护；默认只按总控测试单做 ProjectScope、Plugin、Dashboard、daemon/API、source folder no-write 等最小复测，不提交 workspace 仓库，不把 workspace 根目录加入 source `folders[]`，不把总控文档治理和产品源码修复混在同一测试动作里。
-- 验证 BiliDili 时，把它当真实 iOS/Swift 开源测试项目处理；源码内容允许用于 Alembic 外部 AI provider cold-start / rescan / after-run 测试，不再要求用户手动点击 Dashboard 只为确认源码保密边界。但自动触发仍必须有 `externalAiAutoRunApproved=true` 或同等明确结构化授权。仍默认只做只读扫描、冷启动验证或总控明确要求的最小回归，不要改业务代码，不要打印 secret / token / Cookie / 登录态。
+- 验证 BiliDili 时，把它当真实 iOS/Swift 开源测试项目处理；源码内容允许用于 Alembic 外部 AI provider cold-start / rescan / after-run 测试，不再要求用户手动点击 Dashboard 只为确认源码保密边界。只要当前用户请求、总控测试单或 automation dispatch 明确分配 AlembicTest 使用 BiliDili 做真实验证，即可通过 Alembic daemon/API/脚本主动触发最小必要 cold-start / rescan / after-run；不要再要求 `externalAiAutoRunApproved=true` 这类本窗口自造字段。仍默认只做只读扫描、冷启动验证或总控明确要求的最小回归，不要改业务代码，不要打印 secret / token / Cookie / 登录态。
 - 如果命令无法运行，记录原因、环境限制和下一步建议，不能把未运行命令写成通过。
 
 ## PCVM / cold-start runtime 验证门禁
 
 - 保持当前产品设计：Alembic runtime 通过 package exports 消费 `@alembic/agent` 的构建产物；AlembicTest 不要求 `Alembic` / `AlembicAgent` 改 exports 到 `src/*`，也不得把这种改动当作测试前置条件。
-- 当测试涉及 Alembic runtime、cold-start、rescan、after-run，且 runtime 会通过 `@alembic/agent` 消费 `AlembicAgent` 时，必须先确认 fresh Agent dist。默认命令是 `npm --prefix ../AlembicAgent run build`；如果总控明确指定 dev-link 或等效构建命令，则按总控命令执行并记录。
-- Fresh dist proof 必须至少包含：`AlembicAgent` commit、构建 / dev-link 命令、`@alembic/agent` runtime linkage（例如 package realpath、main/exports 指向）以及本轮关键 dist 文件命中证据。命中证据应指向相关 `dist/` 文件中是否包含本轮要验证的字段、node id、metadata、runtime carry 或 projection 字段。
-- 测试结论必须区分两类证据：sourceRef / `src` 代码事实证据，和 runtime artifact / `dist` proof 运行产物证据。不能用 `src` 命中代替 runtime 产物命中，也不能用 report/API 结果反推 source 已生效。
-- 如果 `src` 有证据但 `dist` 未刷新、`dist` 无命中或 runtime linkage 仍指向旧产物，不得判定产品功能失败；应回填为测试环境 / runtime linkage 阻塞或 stale dist 风险，并写清下一步需要刷新产物后重跑。
-- 如果 fresh dist proof 成立后 runtime / report 仍失败，再按证据分层判断归属：`AlembicAgent` 传递链、Alembic runtime consumer、report projection / persistence，或真实产品缺陷。归因前必须列出上游已产出什么、下游实际消费了什么、缺失字段停在哪一层。
-- 如果 cold-start / after-run 会使用外部 AI provider 并发送真实项目上下文，默认正确顺序不是由 Codex 直接触发真实 probe：AlembicTest 只负责启动 / 确认 Alembic 服务、打开 Dashboard、开始被动监控；由用户在 Dashboard 手动点击 cold-start / rescan；随后 AlembicTest 记录本机 daemon/API/log/report 证据。此时必须说明结论来自用户手动 UI 触发，不等价于 Codex probe 的小样本参数。
-- `BiliDili` 例外：用户已明确将 `BiliDili` 定义为开源测试项目，源码内容不再构成手动点击门禁；但 AlembicTest 自动触发外部 provider 必须同时满足：当前用户消息、总控测试单或当前计划写明 `externalAiAutoRunApproved=true`，并写清 `project=BiliDili`、`provider/model`、`maxFiles/contentMaxLines/dimensions`、测试 `scope`、有效期或 `taskId`。字段不齐时只能 passive monitor，等待用户手动 Dashboard 触发。
-- 满足 `BiliDili` 自动授权后，AlembicTest 可以通过 Alembic daemon/API/脚本自动触发 cold-start / rescan / after-run，无需等待用户手动点击 Dashboard。报告必须写清使用了 `BiliDili` 开源测试项目 + `externalAiAutoRunApproved=true` 授权，并记录 provider/model、配置来源、触发入口、request 参数、job/session id、证据路径、git 状态和不能推出的结论。
-- `BiliDili` 例外只解除源码保密与人工点击阻塞，不解除其它门禁：不得发送或打印 secret，不得修改业务源码，不得扩大到其它真实项目，不得绕过测试单范围，不得把 provider 安全策略或错误响应写成“已避开审查”。`AlembicWorkspace` 和其它非开源 / 未明确授权目标仍按用户手动触发或测试单逐项显式授权执行。
-- PCVM / cold-start 监控优先使用短间隔直接 `curl` 快照读取本机 daemon API、日志和 report；不要默认用 Node `fetch`、Node 子进程调用本地 `curl` 或复杂 shell 长轮询包装本地 API，因为沙箱可能让这些嵌套网络 / 子进程路径失败。直接 `curl` URL 必须给带 `?` 的地址加引号，涉及 shell 变量时必须确认变量已 export 或直接写明文件名，避免 zsh glob / 未导出变量造成假失败。
-- 如果监控脚本或长轮询启动失败，不要留下错误进程继续刷日志；停止前必须先用 `ps -p <pid> -o pid,command` 或 `ps -axo pid,command | rg <唯一任务标识>` 确认 PID 确实属于本轮失败监控，再按权限规则停止。不得因为监控脚本失败而停止 Alembic daemon 或用户手动触发的真实 job。
+- 涉及 Alembic runtime、cold-start、rescan、after-run，且 runtime 会通过 `@alembic/agent` 消费 `AlembicAgent` 时，必须先确认 fresh Agent dist；证据至少包括 `AlembicAgent` commit、构建 / dev-link 命令、runtime package realpath 和关键 `dist/` 命中。
+- 测试结论必须区分 sourceRef / `src` 代码事实、runtime artifact / `dist` proof、runtime events、job carry、artifact API、report projection、persisted report 和 Dashboard display；不能跨层推断。
+- 如果 `src` 有证据但 `dist` 未刷新、`dist` 无命中或 runtime linkage 指向旧产物，不得判定产品功能失败；应回填为测试环境 / runtime linkage 阻塞或 stale dist 风险。Fresh dist proof 成立后仍失败，再按证据分层归因到 Agent 传递链、Alembic runtime consumer、report projection / persistence 或真实产品缺陷。
+- `BiliDili` 例外只解除源码保密与人工点击阻塞，不解除其它门禁：不得发送或打印 secret，不得修改业务源码，不得扩大到其它真实项目，不得绕过测试单范围，不得把 provider 安全策略或错误响应写成“已避开审查”。
+- 当前已验证的 BiliDili / AlembicWorkspace / PCVM / 监控快捷路线以 `skills/alembic-test-real-routes/SKILL.md` 和 `scripts/README.md` 为准；偏离默认路线时，报告必须写明当前测试单为什么要求偏离。
 
-## 历史高频碰壁归因
+## 路线索引
 
-- 本机 daemon / API / pid 探活失败时，先区分 Codex 沙箱、本地网络权限、Node `fetch`、子进程和实际 daemon 状态；不能把 `EPERM`、`fetch failed` 或沙箱内 pid 误判直接写成产品不可用。
-- 目标项目缺 AI 配置时，先走 `config/defaults.json` 的 `ai.defaultSourceProject` 基础配置读取路径；配置发现、secret presence 和外部 provider 数据发送授权是三件事，不能混成同一个通过条件。
-- 复测 Dashboard / Jobs / Candidates 前，必须确认当前 daemon 加载的是本轮 Dashboard build / dev-link 资产。旧 daemon 或旧 bundle 可能复现已修复问题（例如 React #31），此类应归为 stale runtime / stale asset 风险。
-- live socket append 结论要分层：最终 retained events / REST recovery 正确，不等于严格逐条近实时显示；如果事件批量落屏，应写成实时性 / cadence 观察，不要误判为 rich content renderer 失败。
-- Dashboard 没显示内容时，先查 producer 是否真实产出 `llm.input` / `llm.output` / `llm.reflection` / `tool` 事件。producer 未产出是 instrumentation gap，不是前端展示 gap。
-- runtime events、job carry、artifact API、report projection、persisted report 和 Dashboard display 是不同层。某层有 canonical identity / sourceRefs / scorecard 字段，不代表下游 report 或 UI 已消费；结论必须写清字段停在哪一层。
-- ProjectScope / Plugin 验证要区分 `status` / `diagnostics` identity、`tools/list` 可见性和 `health` / `prime` / `search` 真实执行。身份识别通过不等于 Codex-facing tool execution preflight 已走通。
-- Probe 顶层 classifier 可能滞后于产品修复；如果 classifier 与原始 tool result / JSON evidence 冲突，以原始字段为准，并把 classifier 过时写成测试脚本风险。
-- `dev:link` / 本地 build 可能把目标仓库 dirty tree 打进验证对象。报告必须列出 commit 与 dirty files，并说明本轮验证对象是纯 commit 还是 commit + 未提交变更。
-- 真实测试项目 git tree clean 不代表没有测试副作用；Ghost data root 里产生 candidates、reports、skills、memory 属于运行时数据副作用，必须与业务源码变更分开说明。
-- AlembicTest 提交前必须先看 `git status -sb` 和 ahead / behind。不要 amend 可能已经被远端接收的提交；若出现分叉，先停止并等待用户确认 reset / rebase / merge 策略。
+- 启动测试环境：`scripts/restart-alembic.mjs`。
+- 验证环境稳定：`scripts/verify-test-environment.mjs`。
+- 被动监控 bootstrap：`scripts/monitor-alembic-bootstrap.mjs`。
+- cold-start / Dashboard / PCVM / runtime linkage 具体路线：`skills/alembic-test-real-routes/SKILL.md`。
+- 提交前默认先看 `git status -sb` 和 ahead / behind；出现分叉或远端不一致时停止确认策略，不 amend 已可能被远端接收的提交。
 
 ## 文件地图
 
 - 本窗口规则：`AGENTS.md`。
 - 测试配置：`config/`。
 - 可复用测试脚本：`scripts/`。
+- AlembicTest 专用执行 skill：`skills/`。
 - 测试 fixtures 或样例输入：`fixtures/`。
 - 临时输出、日志截取和本地缓存：`tmp/`，默认不应进入 git。
 - 长期测试计划、复现记录、验证报告：`../workspace-ledger/AlembicTest/`。
@@ -151,6 +164,7 @@ AlembicTest/
 ├── config/
 ├── docs/
 ├── scripts/
+├── skills/
 ├── fixtures/
 └── tmp/
 ```

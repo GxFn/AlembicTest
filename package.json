@@ -7,6 +7,7 @@
   "scripts": {
     "restart": "node scripts/restart-alembic.mjs",
     "restart:monitor": "node scripts/restart-alembic.mjs --monitor",
+    "verify:env": "node scripts/verify-test-environment.mjs",
     "monitor": "node scripts/monitor-alembic-bootstrap.mjs",
     "monitor:watch": "node scripts/monitor-alembic-bootstrap.mjs --watch",
     "probe:cold-start-timeline": "node scripts/probe-cold-start-process-timeline.mjs",
@@ -17,6 +18,6 @@
     "probe:pcv-canonical-source-baseline": "node scripts/probe-pcv-canonical-source-baseline.mjs",
     "probe:pcv-n9-observability-linkage": "node scripts/probe-pcv-n9-observability-linkage.mjs",
     "tmp:retention": "node scripts/tmp-evidence-retention.mjs",
-    "check": "node scripts/restart-alembic.mjs --help && node scripts/monitor-alembic-bootstrap.mjs --help && node scripts/probe-codex-prime.mjs --help && node scripts/probe-resident-vector-search.mjs --help && node scripts/probe-unified-resident-service.mjs --help && node scripts/probe-cold-start-process-timeline.mjs --help && node scripts/probe-dashboard-artifact-detail.mjs --help && node scripts/probe-llm-input-layering.mjs --help && node scripts/probe-llm-observation-ledger.mjs --help && node scripts/probe-package-runtime-integration.mjs --help && node scripts/probe-pcv-canonical-source-baseline.mjs --help && node scripts/probe-pcv-n9-observability-linkage.mjs --help && node scripts/tmp-evidence-retention.mjs --help"
+    "check": "node scripts/restart-alembic.mjs --help && node scripts/verify-test-environment.mjs --help && node scripts/monitor-alembic-bootstrap.mjs --help && node scripts/probe-codex-prime.mjs --help && node scripts/probe-resident-vector-search.mjs --help && node scripts/probe-unified-resident-service.mjs --help && node scripts/probe-cold-start-process-timeline.mjs --help && node scripts/probe-dashboard-artifact-detail.mjs --help && node scripts/probe-llm-input-layering.mjs --help && node scripts/probe-llm-observation-ledger.mjs --help && node scripts/probe-package-runtime-integration.mjs --help && node scripts/probe-pcv-canonical-source-baseline.mjs --help && node scripts/probe-pcv-n9-observability-linkage.mjs --help && node scripts/tmp-evidence-retention.mjs --help"
   }
 }
