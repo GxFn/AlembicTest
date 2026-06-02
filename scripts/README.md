@@ -112,6 +112,12 @@ Current scripts:
   `metadata.pcvNodeEvidence` reaches job-level `pcvN9Observability` or remains
   `blocked-by-observability-gap`. It does not run full cold-start / rescan or
   modify product source.
+- `tool-terminal-baseline.mjs`: controlled Tool/Terminal usage baseline helper.
+  It reads an explicit action ledger, normalizes transcript-order rows into a
+  concrete `timestamp` field, recomputes support/diagnostic metrics, and writes
+  generated JSON/report evidence only under `AlembicTest/`. Use it when a PCVM
+  or AlembicTest task needs auditable tool/terminal metrics without hand-writing
+  path-sensitive evidence files.
 - `restart-alembic.mjs`: one-command local Alembic runtime restart for real
   project testing. It uses `AlembicTest/config/defaults.json` for its CLI
   fallback project, while `AlembicWorkspace` and `BiliDili` are both valid
@@ -218,6 +224,17 @@ Probe PrimeInjectionPackage projection through embedded Plugin runtime:
 
 ```bash
 <node-22-binary> AlembicTest/scripts/probe-prime-injection-package-smoke.mjs
+```
+
+Build or check a controlled Tool/Terminal baseline from an explicit action
+ledger:
+
+```bash
+node AlembicTest/scripts/tool-terminal-baseline.mjs \
+  --actions AlembicTest/tmp/pcvm-tool-terminal-usage-baseline-2026-05-31/baseline-actions.json \
+  --source-map AlembicTest/tmp/pcvm-tool-terminal-usage-baseline-2026-05-31/telemetry-source-map.json \
+  --out-dir AlembicTest/tmp/tool-terminal-baseline-smoke \
+  --report AlembicTest/tmp/tool-terminal-baseline-smoke/report.md
 ```
 
 Probe unified resident-service behavior:
