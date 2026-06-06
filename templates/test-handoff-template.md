@@ -1,16 +1,41 @@
-# TestWindow Handoff Template
+# AlembicTest Boundary Template
 
-Use this template only when the control center needs `TestWindow` to run a
+Use this template only when total control needs a Test window to run a
 real-scenario test that total control cannot perform itself.
-Copy the filled section into `.workspace-active/workspace/current/test-exchange.md`.
+
+Current control flow is state-root first. The machine source of authority should
+be a `control-intake.mjs test-card` record under the active controller state
+root:
+
+```bash
+node scripts/control-intake.mjs test-card \
+  --state-root <stateRoot> \
+  --test-id <testId> \
+  --target-window <AlembicTest|AlembicTest-IDE> \
+  --question "<what this test answers>" \
+  --object-boundary "<target/project/window boundary>" \
+  --controller-self-check "<what total control already checked>" \
+  --real-scenario-condition "<why a real scenario is required>" \
+  --success-means "<what success proves>" \
+  --failure-means "<what failure proves>" \
+  --cannot-conclude "<what this test cannot prove>" \
+  --stop-condition "<when not to start or when to stop>" \
+  --write --json
+```
+
+The Markdown section below is only a human-readable projection / planning aid
+when total control wants one. It is not the state authority and should not be
+used instead of the machine test card for new demands.
 
 ````text
 ### Test-<编号>：<测试名称>
 
 状态：待确认 / 待启动 / 执行中 / 待验收 / 已完成 / 阻塞 / 暂停
 创建日期：YYYY-MM-DD
-总控来源：<关联总控计划或用户请求>
-执行窗口：TestWindow
+State root：<controller state root>
+Test card：<test-cards/*.json>
+总控来源：<关联 state-root demand / 用户请求>
+执行窗口：AlembicTest / AlembicTest-IDE
 目标项目：<真实测试项目 / fixture / mock project>
 
 #### 测试目标
@@ -28,7 +53,7 @@ Copy the filled section into `.workspace-active/workspace/current/test-exchange.
 - 测试要回答的问题：
 - 测试对象 / 目标窗口 / 线程 / 项目边界：
 - 总控可自测项：
-- 必须交给 `TestWindow` 的真实场景条件：
+- 必须交给 `AlembicTest` / `AlembicTest-IDE` 的真实场景条件：
 - 成功能推出的结论：
 - 失败能推出的结论：
 - 不能推出的结论：
@@ -66,13 +91,14 @@ Copy the filled section into `.workspace-active/workspace/current/test-exchange.
 #### 建议命令或脚本
 
 ```bash
-# 仅限需要真实场景的部分由 TestWindow 窗口按自身仓库脚本执行；
+# 仅限需要真实场景的部分由 AlembicTest / AlembicTest-IDE 窗口按自身仓库脚本执行；
 # 不依赖真实场景的脚本测试 / 文档校验 / targeted probe 应由总控先完成。
 ```
 
 #### 回填要求
 
 - 测试结论：
+- state root / test card / target task id：
 - 边界命中情况：
 - 执行范围：
 - 使用配置：

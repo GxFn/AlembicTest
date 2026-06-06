@@ -1,17 +1,25 @@
 ---
 name: alembic-test-real-routes
-description: Use when AlembicTest needs to run or monitor real-project Alembic tests, especially BiliDili/AlembicWorkspace cold-start, after-run, Dashboard, PCVM, runtime linkage, or test-mode verification. Follow verified routes and collect evidence instead of inventing new paths.
+description: Use when AlembicTest needs to run or monitor real-project Alembic tests, especially BiliDili/AlembicWorkspace cold-start, after-run, Dashboard, PCVM, runtime linkage, or test-mode verification; or when AlembicTest-IDE is explicitly assigned Codex Plugin / host MCP / environment probe evidence. Follow verified routes and collect evidence instead of inventing new paths.
 ---
 
 # AlembicTest Real Routes
 
-Use this skill after reading `AlembicTest/AGENTS.md` and the current control/test document. It contains command routes and evidence checklists; `AGENTS.md` remains the authority for boundaries and stop cards.
+Use this skill after reading `AlembicTest/AGENTS.md` and the current state-root test card / control test document. It contains command routes and evidence checklists; `AGENTS.md` remains the authority for boundaries and stop cards.
 
 Internet research may help discover candidate practices or tool details, but do not treat it as proof that an AlembicTest route works. Promote a route only after local commands, API responses, logs, Dashboard evidence, reports, or probe output validate it.
 
+First confirm the current职责窗口:
+
+- `AlembicTest-IDE` may use only the Codex Plugin / host MCP / environment probe route.
+- `AlembicTest` may use only the real BiliDili / AlembicWorkspace cold-start / rescan / AI / Dashboard routes.
+
+If the requested route does not match the current window, stop and ask total control to reassign.
+
 ## Route Selection
 
-- `BiliDili`: open-source real test project. If the current user request, test exchange, or automation dispatch assigns AlembicTest to run BiliDili cold-start / rescan / after-run, use the automatic test-mode route.
+- `AlembicTest-IDE`: Codex Plugin, host MCP, local environment, installed / packaged runtime smoke, or IDE / direct-thread readback evidence. Do not run BiliDili / AlembicWorkspace AI cold-start / rescan from this window.
+- `BiliDili`: open-source real test project. If the current user request, state-root test card, or automation dispatch assigns AlembicTest to run BiliDili cold-start / rescan / after-run, use the automatic test-mode route.
 - `AlembicWorkspace` or protected targets: start Alembic, open Dashboard, start passive monitoring, then wait for the developer to click cold-start / rescan unless the test document explicitly authorizes automatic context sending.
 - Dashboard/front-end checks: use Codex in-app browser first. If the Browser tool is unavailable and UI evidence is required, pause with the exact URL instead of pretending the page was observed.
 
@@ -37,6 +45,35 @@ curl -sS --max-time 10 '<dashboardUrl>/api/v1/jobs?kind=bootstrap&limit=1&compac
 ```
 
 5. If the environment is ready and the user did not ask AlembicTest to run the cold-start chain, stop there and report the ready URL/pid/test-mode state.
+
+## AlembicTest-IDE Codex MCP Reload Boundary
+
+`AlembicTest-IDE` can verify Codex MCP behavior when assigned, but it does not
+own Plugin reload or current host MCP repair. `AlembicTest` must not use this
+route for real-project cold-start / rescan work.
+
+- `npm run dev:codex-plugin:reload` belongs to AlembicPlugin. Its safe default
+  refreshes the installed plugin projection and runs a fresh MCP probe; it does
+  not live-reload the current Codex host MCP process already attached to the
+  running Codex session.
+- Use MCP probes only for evidence collection requested by the
+  current test order:
+
+```bash
+node AlembicTest/scripts/probe-codex-prime.mjs --project <target>
+node AlembicTest/scripts/probe-resident-vector-search.mjs --project <target>
+node AlembicTest/scripts/probe-unified-resident-service.mjs --phase baseline
+node AlembicTest/scripts/probe-unified-resident-service.mjs --phase resident
+```
+
+- If the current Codex host tool returns `Transport closed`, do not repair it by
+  running Plugin reload with `--stop-mcp` from AlembicTest. First distinguish
+  fresh MCP startup evidence from the current host session; current-session
+  refresh requires AlembicPlugin projection work plus a Codex restart/refresh.
+- `--stop-mcp` and watch `--restart-mcp` are forbidden in AlembicTest unless the
+  active state-root test card explicitly asks to validate that destructive path
+  and accepts that the current Codex session will lose Alembic MCP until Codex
+  restarts.
 
 ## BiliDili Test-Mode Cold-Start / After-Run Route
 
@@ -107,7 +144,7 @@ When the test involves Alembic runtime consuming `@alembic/agent`:
 
 1. Record `git -C ../Alembic rev-parse HEAD`.
 2. Record `git -C ../AlembicAgent rev-parse HEAD`.
-3. Run `npm --prefix ../AlembicAgent run build` unless the control plan names an equivalent dev-link/build command.
+3. Run `npm --prefix ../AlembicAgent run build` unless the active state-root test card names an equivalent dev-link/build command.
 4. Resolve the runtime package path from the Alembic process context when possible.
 5. Search relevant `dist/` files for the exact field, node id, metadata, carry, or projection being tested.
 

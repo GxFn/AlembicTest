@@ -9,28 +9,32 @@
 
 - Control workspace: `../codex-control-workspace`
 - Window name: `AlembicTest`
+- Window aliases for this repository: `AlembicTest-IDE` / `AlembicTest`
 - Parent workspace AGENTS: `../AGENTS.md`
 - Active workspace index: `../codex-control-workspace/.workspace-active/workspace/index.md`
 - Active workspace status: `../codex-control-workspace/.workspace-active/workspace/current/workspace-current-status.md`
 - Current plan directory: `../codex-control-workspace/.workspace-active/workspace/current`
 - Window ledger: `../workspace-ledger/AlembicTest`
-- Test exchange: `../codex-control-workspace/.workspace-active/workspace/current/test-exchange.md`
+- Window ledgers for this repository:
+  - `AlembicTest-IDE`: `../workspace-ledger/AlembicTest-IDE`
+  - `AlembicTest`: `../workspace-ledger/AlembicTest`
+- Test exchange projection: `../codex-control-workspace/.workspace-active/workspace/current/test-exchange.md`
 
 ### 领取 workspace 任务时
 
 1. 先读本文件。
 2. 再读父级 `../AGENTS.md`。
 3. 再读 `../codex-control-workspace/.workspace-active/workspace/index.md` 和 `../codex-control-workspace/.workspace-active/workspace/current/workspace-current-status.md`。
-4. 如果有当前计划、任务包或 Codex Automation heartbeat，只按 `../codex-control-workspace/.workspace-active/workspace/current` 中明确分配给 `AlembicTest` 的内容执行。
+4. 如果有当前计划、任务包或 direct-thread delivery，只按 `../codex-control-workspace/.workspace-active/workspace/current` 中明确分配给本接入卡列出的窗口之一（`AlembicTest-IDE` / `AlembicTest`）的内容执行。
 5. 目标、范围、禁止事项、验证命令和回填字段以当前计划 / 任务包和本仓库规则为准；提示词只是唤醒入口，不是唯一任务说明。
 
-### Codex Automation 最小门禁
+### Direct Thread Dispatch 最小门禁
 
-- Automation 只是一次性唤醒 / 投递信封，不改变本窗口职责，也不扩大任务范围；具体任务以 dispatch packet、当前计划和本仓库规则为准。
-- Heartbeat 提示词只承载动态变量、规则名和 skill 指向；不得把提示词当成完整命令手册。用 `currentWindow` / `taskId` / `dispatchGroup` / `controlPlan` 等变量按 `codex-automation-target` skill 执行，变量缺失或冲突时停止回报。
-- 本窗口只处理 `AlembicTest` 对应的 dispatch packet，并返回 `TargetResultEnvelope`；不得代领、代验或处理其它窗口任务。
-- 子窗口默认不创建目标窗口下一跳 heartbeat；补证、重派和下一阶段都由总控 review 后决定。若 delivery `returnRoute=controller` 且 `review-results` 显示本组结果已齐件或阻塞，只允许通过 `build-controller-return` 创建一次总控回跳。
-- 非 TestWindow 不得创建、处理或验证 TestWindow heartbeat，除非当前计划和 delivery envelope 同时显式授权。
+- Direct-thread delivery 是正常工作投递流水线，不改变本窗口职责，也不扩大任务范围；具体任务以 dispatch packet、当前计划和本仓库规则为准。
+- Delivery prompt 只承载少量动态变量和 skill 指向；不得把提示词当成完整命令手册。状态机路线的可见变量只需要 `currentWindow` / `taskId` / `stateRoot` / 可选 `dispatchGroup`；`controllerWindow`、`returnPolicy`、`humanContextRef`、`stateRevision` 等机器字段从 state root、dispatch group 和 delivery envelope 读取。缺少 `stateRoot` 或变量冲突时停止回报。
+- 本仓库只处理本接入卡列出的窗口 dispatch packet（`AlembicTest-IDE` / `AlembicTest`）；执行前必须按提示词、delivery envelope 或当前计划里的 `currentWindow` 分流，并返回对应窗口的 `TargetResultEnvelope`；不得代领、代验或处理其它窗口任务。
+- 子窗口默认不创建目标窗口下一跳 delivery；补证、重派和下一阶段都由总控 review 后决定。若 delivery `returnRoute=controller` 且 `review-results` 显示 `DispatchGroup.returnPolicy` 允许回调，只允许通过 `build-controller-return` 创建一次总控回跳 envelope，并默认回到 `DispatchGroup.controllerWindow` 指定的原发起总控；之后必须继续完成真实 direct-thread send、readback 和 `record-delivery-run`。只有存在 `status=sent` 且 `readback.ok=true` 的 `DirectThreadDeliveryRun`，才算真实回跳完成。完整 group snapshot 留在 controller-return envelope；可见 prompt 只显示非空异常 targets，不能把单个回填误判为整组完成。
+- 非测试窗口不得创建、处理或验证 AlembicTest / AlembicTest-IDE delivery，除非当前计划和 delivery envelope 同时显式授权。
 - Thread id 只能写入 control workspace 的本地 runtime；不得写入 tracked 文档、回填正文或 GitHub。
 
 ### 文档落点
@@ -42,13 +46,23 @@
 
 本目录是 AlembicWorkspace 内的测试验证窗口，不是 Alembic 产品源码仓库，也不是用户真实业务项目。以下规则是本窗口执行前停止卡；任何测试、自动化、脚本输出或总控回填与本节冲突时，先停止并回报总控。
 
+同一个 `AlembicTest` 仓库可以被两个 Codex 职责窗口使用，执行前必须先按当前计划、测试单或 dispatch packet 的 `currentWindow` / `执行窗口` 分流：
+
+- `AlembicTest-IDE`：Codex Plugin、Codex host MCP、Codex 会话 / 本地环境、installed / packaged Plugin runtime smoke、direct-thread / IDE 投递读回等测试。
+- `AlembicTest`：BiliDili、AlembicWorkspace 或其它受保护真实项目的 cold-start / rescan / after-run、AI/provider、Dashboard 手动观察、运行时监控和真实项目回归。
+
+窗口名与测试对象不匹配时，停止并回报总控改派；不得因为两者共用本仓库而代领另一职责窗口的任务。
+
 ### 先停下
 
-- 如果当前任务没有明确分配给 `AlembicTest`，或没有用户口头要求 / 当前总控测试单 / 当前计划任务包说明真实验证目标，停止。
-- 如果测试问题不需要真实项目、cold-start / rescan、Dashboard 手动观察、运行时监控、真实项目复现 / 回归或跨仓库集成环境证据，停止并回报总控由总控或源仓库自测。
+- 如果当前任务没有明确分配给 `AlembicTest` 或 `AlembicTest-IDE`，或没有用户口头要求 / 当前总控测试单 / 当前计划任务包说明真实验证目标，停止。
+- 如果当前窗口是 `AlembicTest`，但测试对象是 Codex Plugin、host MCP、Codex 会话 / 本地环境或 IDE / direct-thread 投递读回，停止并回报总控改派 `AlembicTest-IDE`。
+- 如果当前窗口是 `AlembicTest-IDE`，但测试对象是真实 BiliDili / AlembicWorkspace cold-start / rescan / after-run、AI/provider、Dashboard 手动观察、运行时监控或真实项目回归，停止并回报总控改派 `AlembicTest`。
+- 如果测试问题既不需要 `AlembicTest-IDE` 的 Codex 插件 / 环境职责，也不需要 `AlembicTest` 的真实项目、cold-start / rescan、Dashboard 手动观察、运行时监控、真实项目复现 / 回归或跨仓库集成环境证据，停止并回报总控由总控或源仓库自测。
 - 如果我准备把测试验证窗口变成产品实现仓库、临时 demo 仓库、补丁仓库，或在本目录复制 Alembic 系列仓库 / 真实测试项目的产品实现来“方便测试”，停止。
 - 如果测试发现产品问题，却准备直接在本目录修产品、绕过源仓库边界或把测试脚本当成产品修复，停止；只回填证据、复现和建议修复仓库。
 - 如果计划涉及修改真实产品代码、清理用户项目、重建 Alembic 数据、取消后台任务、切换全局配置、删除缓存、提交代码或改变测试范围，但当前总控文档或用户没有明确授权，停止。
+- 如果我准备用 AlembicPlugin 的 `dev:codex-plugin:reload`、`--stop-mcp` 或 watch `--restart-mcp` 修复当前 Codex host MCP / `Transport closed`，停止。只有 `AlembicTest-IDE` 能在测试单明确要求时验证 fresh MCP 或复核 reload 证据；不得杀当前 host MCP，也不得把 reload 当成当前 Codex 会话热重载。
 - 如果准备默认把 `BiliDili` 当作唯一测试项目，或没有按测试单选择 `AlembicWorkspace` / `BiliDili` / 其它目标，停止。
 - 如果测试没有写清唯一问题、对象边界、入口、触发动作、真实数据、状态变化、消费方、成功结论、失败结论、不能推出的结论和停止条件，停止。
 - 如果命令未运行、日志未读取、UI 未观察、报告不存在或证据无法复核，却准备写成通过、完成或失败事实，停止。
@@ -62,7 +76,7 @@
 3. 再判断问题归属到哪个源仓库；本窗口只写复现、证据和建议。
 4. 最后按总控要求回填完成范围、验证结果、遗留风险和下一步建议。
 
-当前可作为 AlembicTest 真实验证目标的项目包括 `AlembicWorkspace` 和 `BiliDili`。两者都不是临时 demo：`AlembicWorkspace` 用于 Alembic 自身 multi-root / self-hosting 集成验证，`BiliDili` 用于真实 iOS/Swift 业务项目验证。`BiliDili` 作为开源测试项目时，源码内容不作为外部 AI provider 自动化测试的保密门禁；当当前用户请求、总控测试单或 automation dispatch 明确分配 AlembicTest 使用 BiliDili 做 cold-start / rescan / after-run 真实验证时，应主动执行最小必要自动化测试，不得因缺少某个本窗口自造字段而直接阻塞。仍必须保护 API key、Cookie、token、登录态、设备信息、本机路径细节和运行时 secret。每次测试必须以用户口头要求或当前总控测试单为准选择目标；不得默认把 BiliDili 当成唯一测试项目。
+当前可作为 `AlembicTest` 真实验证目标的项目包括 `AlembicWorkspace` 和 `BiliDili`。两者都不是临时 demo：`AlembicWorkspace` 用于 Alembic 自身 multi-root / self-hosting 集成验证，`BiliDili` 用于真实 iOS/Swift 业务项目验证。`BiliDili` 作为开源测试项目时，源码内容不作为外部 AI provider 自动化测试的保密门禁；当当前用户请求、总控测试单或 automation dispatch 明确分配 `AlembicTest` 使用 BiliDili 做 cold-start / rescan / after-run 真实验证时，应主动执行最小必要自动化测试，不得因缺少某个本窗口自造字段而直接阻塞。仍必须保护 API key、Cookie、token、登录态、设备信息、本机路径细节和运行时 secret。每次测试必须以用户口头要求或当前总控测试单为准选择目标；不得默认把 BiliDili 当成唯一测试项目。`AlembicTest-IDE` 不使用这些真实项目路线。
 
 ## 真实测试执行流程
 
@@ -74,15 +88,24 @@
 - 环境可用性默认先跑 `node AlembicTest/scripts/verify-test-environment.mjs --project <target> --json`；若脚本报 `codex-localhost-sandbox-blocked`，按权限规则重跑或用直接 `curl` 快照验证，不得把它误判为 daemon 故障。
 - 只有被本机命令、API、Dashboard、日志、报告、脚本 `--help` 或历史成功报告验证过的路线，才能写成默认流程；候选路线只能写成待验证。
 
+### AlembicTest-IDE Codex MCP / reload 边界
+
+- `npm run dev:codex-plugin:reload` 属于 `AlembicPlugin` 本地插件投影刷新和 fresh MCP probe 路线，不是 AlembicTest 的 daemon restart，也不是当前 Codex host MCP 的原地热重载。
+- 只有 `AlembicTest-IDE` 可以在测试单明确要求时运行 `probe-codex-prime.mjs`、`probe-resident-vector-search.mjs`、`probe-unified-resident-service.mjs` 等 fresh MCP 证据采集；`AlembicTest` 不承接这类 Codex 插件 / 环境 smoke。
+- 任何测试窗口都不能为了修当前会话的 `Transport closed` 去杀 `codex-mcp.js`。
+- 如果需要让当前 Codex 会话吃到新的 Plugin MCP 代码，正确边界是 AlembicPlugin 刷新投影后由用户 / 总控重启或刷新 Codex；`AlembicTest-IDE` 只复验重启后的 host tool 行为。
+- `--stop-mcp` 和 watch `--restart-mcp` 会让当前 Codex 会话失去 Alembic host MCP，只有当前总控测试单明确授权“验证 kill 后必须重启 Codex”的场景才可使用；否则一律禁止。
+
 ### 执行前自检
 
-1. 先声明当前窗口定位：`AlembicTest` 只负责真实测试验证，不做产品实现，不替总代控验收。
-2. 确认目标项目是 `BiliDili`、`AlembicWorkspace` 还是其它受保护项目；确认测试唯一问题、成功结论、失败结论和不能推出的结论。
+1. 先声明当前窗口定位：`AlembicTest` 只负责真实项目测试验证，`AlembicTest-IDE` 只负责 Codex 插件 / 环境测试；两者都不做产品实现，不替总代控验收。
+2. 按窗口定位确认目标是 Codex 插件 / 环境，还是 `BiliDili`、`AlembicWorkspace` 或其它受保护项目；确认测试唯一问题、成功结论、失败结论和不能推出的结论。
 3. 确认是否需要真实 AI / 外部 provider、Dashboard、用户手动点击、test mode 小样本或 fresh dist proof。
 4. 在回填 `blocked`、`needs-review` 或返回总控前，先确认是否仍可通过启动 Alembic、打开 Dashboard、开启被动监控、切换到 BiliDili 开源测试项目、启用 test mode 小样本或记录更小有效证据推进；这些路径都不可行时才允许阻塞。
 
 ### 目标分流
 
+- `AlembicTest-IDE` 只处理 Codex Plugin、host MCP、Codex 会话 / 本地环境、installed / packaged runtime smoke 和 direct-thread / IDE 投递读回；不得运行 BiliDili / AlembicWorkspace cold-start / rescan / AI 测试。
 - `BiliDili` 是用户明确指定的开源真实测试项目。当前用户请求、总控测试单或 automation dispatch 明确要求 AlembicTest 使用 BiliDili 做 cold-start / rescan / after-run 真实验证时，默认主动执行最小必要 test-mode 自动路线，不等待用户手动点击，也不要要求 `externalAiAutoRunApproved=true` 这类本窗口自造字段。
 - `AlembicWorkspace` 或其它未明确作为开源测试项目的真实项目，如果 cold-start / rescan / after-run 会把项目上下文发送给外部 provider，默认走手动触发路线：AlembicTest 启动 / 确认服务、打开右侧 Dashboard、开始被动监控，由用户点击按钮后再记录本机证据。
 - 当用户只要求“保证测试环境启动正常和稳定”时，不触发 cold-start / rescan / after-run；只启动或验证 daemon、test mode、Dashboard URL、data root、pid、health 和 compact jobs API。

@@ -1,22 +1,29 @@
 # AlembicTest Scripts
 
 This directory stores scripts owned by the AlembicTest verification window.
-They are for real-project smoke, cold-start monitoring, runtime restart checks,
-and evidence collection. Product fixes still belong in the corresponding
-Alembic source repository.
+They are shared by `AlembicTest` and `AlembicTest-IDE`: real-project smoke,
+cold-start monitoring, runtime restart checks, Codex Plugin / environment
+probes, and evidence collection. Product fixes still belong in the
+corresponding Alembic source repository.
 
 Scripts here should:
 
 - run from the workspace root or resolve the workspace root themselves;
 - avoid secrets, tokens, and committed user-specific absolute paths;
 - print enough status for the control center to judge the test result quickly;
-- avoid modifying source repositories unless the current control document or
-  user explicitly authorizes the test.
+- avoid modifying source repositories unless the user request or active
+  state-root test card explicitly authorizes the test.
+- keep Codex MCP verification separate from Plugin reload: only
+  `AlembicTest-IDE` may launch fresh MCP runtimes for evidence when assigned;
+  `AlembicTest` keeps to real-project cold-start / rescan / AI validation. No
+  test window may use AlembicPlugin reload `--stop-mcp` / watch `--restart-mcp`
+  to repair the current Codex host MCP session unless the active state-root test
+  card explicitly authorizes that destructive route and a Codex restart.
 
 Current scripts:
 
-- `probe-codex-prime.mjs`: read-only Codex MCP prime probe for real-project
-  plugin validation. It launches the Alembic Codex MCP stdio runtime from the
+- `probe-codex-prime.mjs`: read-only Codex MCP prime probe for
+  `AlembicTest-IDE` plugin / host environment validation. It launches the Alembic Codex MCP stdio runtime from the
   local `AlembicPlugin` repository with `ALEMBIC_PROJECT_DIR` pointing at the
   target project, calls `alembic_codex_status`, then calls
   `alembic_task(operation=prime)` and stores a JSON evidence packet under
@@ -25,8 +32,10 @@ Current scripts:
   refs, immediate receipt timing fields (`timing`, `requiredBeforeNextAction`,
   and `visibility`), readable receipt-shout guidance that does not dump
   evidence refs by default, and no fictional `codex_host_response` MCP tool.
+  This is fresh MCP evidence only; it does not prove the already-running Codex
+  host MCP session has reloaded Plugin code.
 - `probe-resident-vector-search.mjs`: read-only Codex MCP resident search probe
-  for real-project validation. It launches the same local Alembic Codex MCP
+  for `AlembicTest-IDE` plugin / host environment validation. It launches the same local Alembic Codex MCP
   stdio runtime, calls `alembic_codex_status`, `alembic_task(operation=prime)`,
   then direct `alembic_search` in `auto` and `semantic` modes. It stores a JSON
   evidence packet under `AlembicTest/tmp/` and summarizes
@@ -48,7 +57,7 @@ Current scripts:
   IntentEpisode start / outcome handoff metadata. It does not run full
   cold-start / rescan, open Dashboard UI, or modify product source.
 - `probe-unified-resident-service.mjs`: read-only Codex MCP integration probe
-  for the unified resident-service contract. It records baseline unavailable
+  for `AlembicTest-IDE` and the unified resident-service contract. It records baseline unavailable
   behavior or ready local-resident behavior for `alembic_codex_status`,
   diagnostics, Dashboard handoff, job status, prime, direct `alembic_search`
   auto/semantic, and direct daemon `/api/v1/search` / `/api/v1/jobs` evidence.
@@ -158,7 +167,7 @@ Current scripts:
 - `tmp-evidence-retention.mjs`: dry-run retention audit for ignored raw evidence
   under `AlembicTest/tmp/`. It lists file age and cleanup candidates but never
   deletes files; deleting raw evidence still requires explicit user or
-  control-plan authorization.
+  state-root test-card authorization.
 
 Shared defaults live in `AlembicTest/config/defaults.json`. The config lists
 both supported real-project targets: `AlembicWorkspace` for Alembic self-hosting
@@ -166,6 +175,13 @@ both supported real-project targets: `AlembicWorkspace` for Alembic self-hosting
 It also records the default AI config source project used when a selected target
 has no usable AI config. Override the target or fallback source with CLI flags
 for one-off verification instead of editing the script body.
+
+`codexMcpReload` in the shared defaults is a boundary note, not a Test command.
+Plugin reload belongs to AlembicPlugin and only refreshes installed projection
+plus fresh MCP probe by default. `AlembicTest-IDE` may verify current Codex host
+MCP behavior after the user / controller has refreshed or restarted Codex;
+`AlembicTest` should not take this route. Neither window should kill
+`codex-mcp.js` from a test run.
 
 Audit ignored raw evidence without deleting it:
 
@@ -206,21 +222,24 @@ Monitor an already-running Alembic cold start:
 node AlembicTest/scripts/monitor-alembic-bootstrap.mjs --watch
 ```
 
-Probe Codex prime against the fallback target or an explicit target:
+Probe Codex prime against the fallback target or an explicit target only when
+`AlembicTest-IDE` is assigned:
 
 ```bash
 node AlembicTest/scripts/probe-codex-prime.mjs
 node AlembicTest/scripts/probe-codex-prime.mjs --project AlembicWorkspace --query "<target-specific prompt>"
 ```
 
-Probe resident vector search against the fallback target or an explicit target:
+Probe resident vector search against the fallback target or an explicit target
+only when `AlembicTest-IDE` is assigned:
 
 ```bash
 node AlembicTest/scripts/probe-resident-vector-search.mjs
 node AlembicTest/scripts/probe-resident-vector-search.mjs --project AlembicWorkspace --prime-query "<target-specific prompt>" --search-query "<target-specific query>"
 ```
 
-Probe PrimeInjectionPackage projection through embedded Plugin runtime:
+Probe PrimeInjectionPackage projection through embedded Plugin runtime only when
+`AlembicTest-IDE` is assigned:
 
 ```bash
 <node-22-binary> AlembicTest/scripts/probe-prime-injection-package-smoke.mjs

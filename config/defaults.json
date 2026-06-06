@@ -34,6 +34,16 @@
     "runtimeWriteCheck": true,
     "statusProbe": true
   },
+  "codexMcpReload": {
+    "owner": "AlembicPlugin",
+    "defaultUse": "refresh installed plugin projection and run a fresh MCP probe; it does not live-reload the current Codex host MCP session",
+    "alembicTestIdeAllowedUse": "collect fresh MCP evidence only when the active test order assigns Codex Plugin or host-environment verification to AlembicTest-IDE",
+    "alembicTestAllowedUse": "not for Codex Plugin or host-environment smoke; use AlembicTest only for real-project cold-start/rescan, AI/provider, Dashboard, monitoring, and regression validation",
+    "forbiddenInAlembicTest": [
+      "do not use reload as a repair path for current Transport closed",
+      "do not pass --stop-mcp or watch --restart-mcp unless the control plan explicitly authorizes current host MCP loss and a Codex restart"
+    ]
+  },
   "monitor": {
     "intervalMs": 20000,
     "timeoutSeconds": 8,
